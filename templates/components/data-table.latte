@@ -1,0 +1,18 @@
+{layout '../layouts/component.latte'}
+{block body}
+<div {$rootAttrs|noescape}>
+<template x-for="rowId in selectedRows" :key="rowId">
+<input type="hidden" name="{$name}[]" :value="rowId">
+</template>
+<table class="mui-table mui-table--compact">
+<caption class="mui-sr-only" id="{$captionId}">{$caption}</caption>
+<thead><tr>
+{$headerHtml|noescape}
+</tr></thead>
+<tbody>
+{$rowsHtml|noescape}
+</tbody>
+</table>
+<div class="mcl-table-footer"><span x-text="selectedRows.length"></span>&nbsp;seleccionados</div>
+</div>
+{/block}

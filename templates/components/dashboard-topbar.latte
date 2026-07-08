@@ -1,0 +1,18 @@
+{layout '../layouts/component.latte'}
+{block body}
+<header {$rootAttrs|noescape}>
+<div class="mui-topbar__start">
+<button {$toggleAttrs|noescape}><span aria-hidden="true">=</span></button>
+{$eyebrowHtml|noescape}
+{$titleHtml|noescape}
+</div>
+<div class="mui-topbar__search">
+<label class="mui-sr-only" for="{$searchId}">Buscar</label>
+<div class="mui-input-group mui-input-group--prefix">
+<span class="mui-input-group__prefix" aria-hidden="true">/</span>
+<input {$searchAttrs|noescape}>
+</div>
+</div>
+<div class="mui-topbar__end">{$childrenHtml|noescape}</div>
+</header>
+{/block}

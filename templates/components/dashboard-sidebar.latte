@@ -1,0 +1,13 @@
+{layout '../layouts/component.latte'}
+{block body}
+<nav {$rootAttrs|noescape}>
+<a class="mui-sidebar__brand" href="#"><span class="mui-sidebar__wordmark">{$brand}</span></a>
+<div class="mui-sidebar__nav">
+<div class="mui-sidebar__section" role="group" aria-labelledby="{$sectionId}">
+<span class="mui-sidebar__section-label" id="{$sectionId}">cultivo</span>
+{$itemsHtml|noescape}
+</div>
+</div>
+{$childrenHtml|noescape}
+</nav>
+{/block}

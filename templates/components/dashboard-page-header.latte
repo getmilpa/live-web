@@ -1,0 +1,10 @@
+{layout '../layouts/component.latte'}
+{block body}
+<header {$rootAttrs|noescape}>
+<div class="mui-page-header__text">
+{$eyebrowHtml|noescape}
+<h1 class="mui-page-header__title">{$title}</h1>
+{$descriptionHtml|noescape}
+</div>
+</header>
+{/block}

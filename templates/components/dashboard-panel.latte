@@ -1,0 +1,7 @@
+{layout '../layouts/component.latte'}
+{block body}
+<section {$rootAttrs|noescape}>
+{$headerHtml|noescape}
+<div class="mui-card__body">{$childrenHtml|noescape}</div>
+</section>
+{/block}

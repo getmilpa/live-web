@@ -1,0 +1,27 @@
+{layout '../layouts/component.latte'}
+{block body}
+<div {$rootAttrs|noescape}>
+{$labelHtml|noescape}
+<div class="mui-selection-tray" x-show="selected.length" x-cloak>
+<template x-for="item in selected" :key="item.value">
+<span class="mui-badge mui-badge--accent">
+<span x-text="item.label"></span>
+<button class="mui-badge__remove" type="button" aria-label="Quitar seleccion" @click="remove(item)">x</button>
+</span>
+</template>
+</div>
+<div class="mui-input-group mui-input-group--suffix">
+<input class="mui-input" id="{$inputId}" name="{$name}_label" type="search" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="{$listId}" :aria-expanded="open ? 'true' : 'false'" placeholder="Buscar..." x-model="query" @input.debounce.150ms="search()" @focus="search()" @keydown.escape="open = false" @keydown.enter.prevent="selectActive()" @keydown.arrow-down.prevent="move(1)" @keydown.arrow-up.prevent="move(-1)">
+</div>
+<template x-for="item in selected" :key="'input-' + item.value">
+<input type="hidden" name="{$inputName}" :value="item.value">
+</template>
+<ul class="mui-menu" id="{$listId}" role="listbox" x-show="open" x-cloak>
+<template x-for="(item, index) in items" :key="item.value">
+<li class="mui-menu__item" role="option" :aria-selected="index === activeIndex ? 'true' : 'false'" @mousedown.prevent="select(item)" x-text="item.label"></li>
+</template>
+<li class="mui-menu__item" x-show="!loading && !items.length && query.length">Sin resultados</li>
+</ul>
+<p class="mui-field__error" x-show="error" x-cloak x-text="error"></p>
+</div>
+{/block}

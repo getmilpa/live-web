@@ -1,0 +1,8 @@
+{layout '../layouts/component.latte'}
+{block body}
+<ul class="mcl-alert-list" data-milpa-component-id="{$componentId}">
+{foreach $items as $item}
+<li><strong>{$item.count}</strong> {$item.text}</li>
+{/foreach}
+</ul>
+{/block}

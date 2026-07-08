@@ -1,0 +1,9 @@
+{layout '../layouts/component.latte'}
+{block body}
+<div {$rootAttrs|noescape}>
+{$labelHtml|noescape}
+<input {$controlAttrs|noescape}>
+{$hintHtml|noescape}
+<p class="mui-field__error" id="{$errorId}" x-show="error" x-cloak x-text="error"></p>
+</div>
+{/block}

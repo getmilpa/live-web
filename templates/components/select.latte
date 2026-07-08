@@ -1,0 +1,13 @@
+{layout '../layouts/component.latte'}
+{block body}
+<div {$rootAttrs|noescape}>
+{$labelHtml|noescape}
+<span class="mui-select-wrap">
+<select {$controlAttrs|noescape}>
+{$optionsHtml|noescape}
+</select>
+</span>
+{$hintHtml|noescape}
+<p class="mui-field__error" id="{$errorId}" x-show="error" x-cloak x-text="error"></p>
+</div>
+{/block}

@@ -1,0 +1,13 @@
+{layout '../layouts/component.latte'}
+{block body}
+<article {$rootAttrs|noescape}>
+<div class="mui-card__body">
+<div class="mui-stat">
+<span class="mui-stat__label">{$title}</span>
+<span class="mui-stat__value">{$value}</span>
+<span class="{$deltaClass}">{$delta}</span>
+<span class="mui-stat__meta">{$caption}</span>
+</div>
+</div>
+</article>
+{/block}
