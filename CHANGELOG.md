@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.1](https://github.com/getmilpa/live-web/compare/v0.1.0...v0.1.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* resolve the design path vendor-aware ([500b382](https://github.com/getmilpa/live-web/commit/500b38277d9ee95e384d7a448142e129467565e9))
+
+
+### Miscellaneous Chores
+
+* release 0.1.1 ([3501628](https://github.com/getmilpa/live-web/commit/3501628d3aa9efd27fa56d02a93bb44fa166316d))
+
 ## 0.1.0 (2026-07-08)
 
 
