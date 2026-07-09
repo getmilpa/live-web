@@ -49,8 +49,11 @@ final class MilpaDesign
 
     /**
      * Resolves the `@milpa/design` package root: `MILPA_DESIGN_PATH` when
-     * set, otherwise `node_modules/@milpa/design` under the project root.
-     * Throws `RuntimeException` if the resolved directory does not exist.
+     * set, otherwise `node_modules/@milpa/design` under the consuming
+     * application's root (see {@see projectRoot()} / {@see RootResolver} —
+     * this is NOT this package's own install location, which may sit under
+     * `vendor/` at any depth). Throws `RuntimeException` if the resolved
+     * directory does not exist.
      */
     public static function path(): string
     {
@@ -85,9 +88,18 @@ final class MilpaDesign
         return '@milpa/design:' . ltrim($relativePath, '/');
     }
 
+    /**
+     * The consuming application's root, resolved vendor-depth-independently
+     * via {@see RootResolver} (Composer `InstalledVersions`' root package,
+     * falling back to a `composer.json` walk from `getcwd()`) — NOT
+     * `dirname(__DIR__, N)` from this file, which would answer "where is
+     * `milpa/live-web` installed" instead of "where is the app that
+     * installed it", and breaks silently once this package is
+     * Composer-vendored.
+     */
     private static function projectRoot(): string
     {
-        return dirname(__DIR__, 2);
+        return (new RootResolver())->resolve();
     }
 
     private static function normalizeExistingPath(string $path, string $source): string
