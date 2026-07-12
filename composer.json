@@ -6,7 +6,7 @@
   "require": {
     "php": ">=8.3",
     "ext-dom": "*",
-    "milpa/core": "^0.5",
+    "milpa/core": "^0.6",
     "milpa/live": "^0.1",
     "composer-runtime-api": "^2.2"
   },
