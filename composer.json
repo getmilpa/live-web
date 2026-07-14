@@ -3,6 +3,12 @@
   "description": "HTTP/HTML transport layer for Milpa Live: CSRF/HMAC/nonce security, the signed XHTML state-transfer codec, the wire-protocol LiveEndpoint controller, and the HTML/Alpine/Latte-subset renderers for the Milpa PHP framework.",
   "type": "library",
   "license": "Apache-2.0",
+  "authors": [
+    {
+      "name": "Rodrigo Vicente - TeamX Agency",
+      "homepage": "https://teamx.agency"
+    }
+  ],
   "require": {
     "php": ">=8.3",
     "ext-dom": "*",

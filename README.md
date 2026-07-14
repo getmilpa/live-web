@@ -178,7 +178,7 @@ Every public symbol carries a DocBlock.
 ## Requirements
 
 - PHP **≥ 8.3** with the **`ext-dom`** extension
-- [`milpa/core`](https://packagist.org/packages/milpa/core) **^0.5**
+- [`milpa/core`](https://packagist.org/packages/milpa/core) **^0.6**
 - [`milpa/live`](https://packagist.org/packages/milpa/live) **^0.1**
 
 ## Documentation
