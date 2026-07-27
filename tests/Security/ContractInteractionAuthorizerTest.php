@@ -129,4 +129,41 @@ final class ContractInteractionAuthorizerTest extends TestCase
         self::assertFalse($result->allowed);
         self::assertArrayHasKey('scope', $result->errors);
     }
+
+    public function testAuthorizeDeniesAnInteractionAimedAtAnotherInstance(): void
+    {
+        // The state says customer-picker; the interaction claims another id.
+        // Letting it through would apply one instance's action to another
+        // instance's state — the client picks both, so neither can be trusted
+        // against the other.
+        $authorizer = new ContractInteractionAuthorizer($this->components);
+
+        $result = $authorizer->authorize(new InteractionRequest(
+            componentId: 'otro-picker',
+            componentName: 'autocomplete',
+            action: 'search',
+            state: $this->state(),
+        ), new SecurityPrincipal('user:1', ['milpa:*']));
+
+        self::assertFalse($result->allowed);
+        self::assertArrayHasKey('componentId', $result->errors);
+    }
+
+    public function testAuthorizeDeniesAnInteractionClaimingAnotherComponentForTheSameState(): void
+    {
+        // Same instance id, a different contract name: the action would be
+        // checked against a contract this state was never mounted with.
+        $this->components->register('otro', $this->autocomplete);
+        $authorizer = new ContractInteractionAuthorizer($this->components);
+
+        $result = $authorizer->authorize(new InteractionRequest(
+            componentId: 'customer-picker',
+            componentName: 'otro',
+            action: 'search',
+            state: $this->state(),
+        ), new SecurityPrincipal('user:1', ['milpa:*']));
+
+        self::assertFalse($result->allowed);
+        self::assertArrayHasKey('componentName', $result->errors);
+    }
 }

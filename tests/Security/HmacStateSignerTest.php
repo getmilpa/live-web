@@ -15,6 +15,8 @@ declare(strict_types=1);
 namespace Milpa\Live\Tests\Security;
 
 use Milpa\Live\Security\HmacStateSigner;
+use Milpa\Live\ValueObjects\StateSignature;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class HmacStateSignerTest extends TestCase
@@ -57,5 +59,39 @@ final class HmacStateSignerTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         new HmacStateSigner('');
+    }
+
+    /**
+     * @return iterable<string, array{string, string, string}>
+     */
+    public static function malformedSignatures(): iterable
+    {
+        yield 'another algorithm' => ['hmac-sha1', 'abc123', 'nonce'];
+        yield 'no value' => ['hmac-sha256', '', 'nonce'];
+        yield 'no nonce' => ['hmac-sha256', 'abc123', ''];
+    }
+
+    #[DataProvider('malformedSignatures')]
+    public function testVerifyRejectsAMalformedSignatureBeforeSpendingAHash(string $algorithm, string $value, string $nonce): void
+    {
+        // A signature naming another algorithm is the downgrade attempt this
+        // guard exists for: accept it and the value is compared under rules
+        // this signer never agreed to.
+        $signer = new HmacStateSigner('lab-secret-for-signatures');
+        $signature = new StateSignature($algorithm, $value, time(), time() + 300, $nonce);
+
+        self::assertFalse($signer->verify('payload-bytes', $signature));
+    }
+
+    public function testVerifyRejectsASignatureDatedInTheFuture(): void
+    {
+        // Beyond the tolerated skew, "issued later than now" means the clock
+        // it was minted against is not ours — or the date was chosen to keep
+        // the signature alive past its real expiry.
+        $signer = new HmacStateSigner('lab-secret-for-signatures', clockSkewSeconds: 30);
+        $future = time() + 3600;
+        $signature = new StateSignature('hmac-sha256', 'no-importa-el-valor', $future, $future + 300, 'nonce');
+
+        self::assertFalse($signer->verify('payload-bytes', $signature));
     }
 }

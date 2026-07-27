@@ -72,4 +72,42 @@ final class XhtmlStateTransferCodecTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $codec->decodeState('<milpa-state component-id="x" component="y" version="1" encoding="json.base64">not-base64!!!</milpa-state>');
     }
+
+    // ---- what a malformed envelope does ---------------------------------------
+
+    public function testAnEnvelopeThatIsNotXmlIsRejected(): void
+    {
+        $codec = new XhtmlStateTransferCodec();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Invalid XHTML transfer envelope');
+
+        $codec->decodeState('<milpa-state sin cerrar');
+    }
+
+    public function testAnEnvelopeWithTheWrongTagIsRejected(): void
+    {
+        // Well-formed XML is not enough: an interaction envelope handed to
+        // decodeState() would otherwise be read as state.
+        $codec = new XhtmlStateTransferCodec();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Expected <milpa-state> transfer envelope');
+
+        $codec->decodeState('<milpa-interaction>e30=</milpa-interaction>');
+    }
+
+    public function testAPayloadThatIsValidJsonButNotAnObjectIsRejected(): void
+    {
+        // base64 of `42`: decodes cleanly, parses cleanly, and is still not a
+        // state envelope. Without the shape check it would reach the snapshot
+        // constructor as a scalar. The payload is the element's text content,
+        // not an attribute.
+        $codec = new XhtmlStateTransferCodec();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Invalid JSON payload');
+
+        $codec->decodeState('<milpa-state>' . base64_encode('42') . '</milpa-state>');
+    }
 }
