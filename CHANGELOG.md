@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/getmilpa/live-web/compare/v0.1.2...v0.2.0) (2026-07-28)
+
+
+### Features
+
+* render field errors server-side and add the schema form renderer ([bd30b29](https://github.com/getmilpa/live-web/commit/bd30b291afa19fb4e1c5fe6db3cf97afc5367afb))
+
 ## [0.1.2](https://github.com/getmilpa/live-web/compare/v0.1.1...v0.1.2) (2026-07-12)
 
 
