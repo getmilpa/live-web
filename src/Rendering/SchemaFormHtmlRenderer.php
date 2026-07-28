@@ -41,12 +41,15 @@ final class SchemaFormHtmlRenderer
     private readonly ?\Closure $messageResolver;
 
     /**
-     * @param ?callable(FieldError, FormField): string $messageResolver resolves a field's first
-     *        validation error to the message shown to the user — given the `FieldError` (switch on
-     *        its stable `code`, a closed set) and the `FormField` (for its `label`). Defaults to the
-     *        error's own `message` (English) — the prior behavior, BC. A host in another language
-     *        injects a resolver keyed on `code` so the UI never mixes a translated label with an
-     *        English suffix ("Nombre del sitio is required.").
+     * The resolver turns a field's first validation error into the message the user reads. It gets
+     * the `FieldError` — switch on its stable `code`, a closed set — and the `FormField`, for its
+     * `label`. Left null it returns the error's own English `message`, which is the prior behavior
+     * and keeps this constructor backward compatible.
+     *
+     * A host in another language injects one keyed on `code`, so the UI never pairs a translated
+     * label with an English suffix ("Nombre del sitio is required.").
+     *
+     * @param ?callable(FieldError, FormField): string $messageResolver
      */
     public function __construct(?callable $messageResolver = null)
     {
