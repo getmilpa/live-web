@@ -28,6 +28,7 @@ use Milpa\Live\Rendering\XhtmlComponentCompiler;
 use Milpa\Live\Runtime\InMemoryComponentRegistry;
 use Milpa\Live\Transport\XhtmlStateTransferCodec;
 use Milpa\Live\ValueObjects\ComponentContext;
+use Milpa\Live\ValueObjects\RenderRequest;
 use Milpa\Live\ValueObjects\RenderTarget;
 use PHPUnit\Framework\TestCase;
 
@@ -104,5 +105,83 @@ XHTML,
         self::assertStringContainsString('mui-choice', $compiled->output);
         self::assertStringContainsString('name="project_name"', $compiled->output);
         self::assertStringContainsString('value="prototype"', $compiled->output, 'select defaults must render as options');
+    }
+
+    /**
+     * ADR#8 (Server Truth First): the field error must reach the human
+     * WITHOUT JavaScript. Before this test, the message only rode into the
+     * `x-data` JSON blob; the visible `<p>` was `x-cloak`'d and its text
+     * came exclusively from `x-text`, so a no-JS request never saw it.
+     */
+    public function testInputRendersServerSideErrorMessageAsStaticTextWithoutJs(): void
+    {
+        $renderer = new FormPrimitiveHtmlRenderer(new AlpineRuntimeAdapter(), new XhtmlStateTransferCodec());
+
+        $withError = $renderer->render(new InputComponent(), new RenderRequest(
+            context: new ComponentContext('project-name-field', route: '/lab/form'),
+            props: ['name' => 'project_name', 'label' => 'Project', 'error' => 'Nombre y correo son obligatorios & no pueden ir vacíos'],
+        ));
+
+        self::assertStringNotContainsString('x-cloak', $withError->output, 'x-cloak hides server truth until Alpine boots — ADR#8 forbids it on the error node');
+        self::assertMatchesRegularExpression(
+            '/<p class="mui-field__error"[^>]*>Nombre y correo son obligatorios &amp; no pueden ir vac[íi]os<\/p>/u',
+            $withError->output,
+            'the escaped error message must be static HTML text inside the <p>, not only inside the x-data JSON blob',
+        );
+        self::assertDoesNotMatchRegularExpression(
+            '/<p class="mui-field__error"[^>]*(?<!:)\bhidden\b(?!=)[^>]*>Nombre/',
+            $withError->output,
+            'the error paragraph must NOT carry the bare hidden attribute when a server error is present (the "hidden" inside x-bind:hidden does not count)',
+        );
+        // With an error present the hidden-attribute slot is empty: the <p>'s attributes stay
+        // single-spaced, never doubled (previously it emitted `id="..."  x-bind`).
+        self::assertStringNotContainsString('  x-bind:hidden', $withError->output, 'no double space when the hidden slot is empty');
+
+        $withoutError = $renderer->render(new InputComponent(), new RenderRequest(
+            context: new ComponentContext('project-name-field-clean', route: '/lab/form'),
+            props: ['name' => 'project_name', 'label' => 'Project'],
+        ));
+
+        self::assertMatchesRegularExpression(
+            '/<p class="mui-field__error"[^>]*(?<!:)\bhidden\b(?!=)[^>]*><\/p>/',
+            $withoutError->output,
+            'with no error, the paragraph must be empty AND carry the bare hidden attribute — no dead visible box',
+        );
+    }
+
+    /**
+     * Same ADR#8 defect, checkbox structure (label/control markup differs
+     * from input/textarea/select — the error node must still be honest).
+     */
+    public function testCheckboxRendersServerSideErrorMessageAsStaticTextWithoutJs(): void
+    {
+        $renderer = new FormPrimitiveHtmlRenderer(new AlpineRuntimeAdapter(), new XhtmlStateTransferCodec());
+
+        $withError = $renderer->render(new CheckboxComponent(), new RenderRequest(
+            context: new ComponentContext('approved-field', route: '/lab/form'),
+            props: ['name' => 'approved', 'label' => 'Approved', 'error' => 'Debes aceptar los términos'],
+        ));
+
+        self::assertStringNotContainsString('x-cloak', $withError->output);
+        self::assertMatchesRegularExpression(
+            '/<p class="mui-field__error"[^>]*>Debes aceptar los t[ée]rminos<\/p>/u',
+            $withError->output,
+            'the checkbox error message must also be static HTML text, not only inside x-data',
+        );
+        self::assertDoesNotMatchRegularExpression(
+            '/<p class="mui-field__error"[^>]*(?<!:)\bhidden\b(?!=)[^>]*>Debes/',
+            $withError->output,
+        );
+
+        $withoutError = $renderer->render(new CheckboxComponent(), new RenderRequest(
+            context: new ComponentContext('approved-field-clean', route: '/lab/form'),
+            props: ['name' => 'approved', 'label' => 'Approved'],
+        ));
+
+        self::assertMatchesRegularExpression(
+            '/<p class="mui-field__error"[^>]*(?<!:)\bhidden\b(?!=)[^>]*><\/p>/',
+            $withoutError->output,
+            'checkbox error paragraph must be hidden (no dead box) when there is no error',
+        );
     }
 }

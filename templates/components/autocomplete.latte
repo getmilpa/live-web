@@ -22,6 +22,6 @@
 </template>
 <li class="mui-menu__item" x-show="!loading && !items.length && query.length">Sin resultados</li>
 </ul>
-<p class="mui-field__error" x-show="error" x-cloak x-text="error"></p>
+<p class="mui-field__error" id="{$errorId}"{$errorHiddenAttr|noescape} x-bind:hidden="!error" x-text="error">{$errorText|noescape}</p>
 </div>
 {/block}

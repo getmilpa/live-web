@@ -89,6 +89,7 @@ final readonly class FormPrimitiveHtmlRenderer implements ComponentRendererInter
                 $errorId = $fieldId . '-error';
                 $describedBy = trim(($hint !== '' ? $hintId : '') . ' ' . $errorId);
                 $valueKey = $contract->name === 'checkbox' ? 'checked' : 'value';
+                $errorText = (string) ($state->data['error'] ?? '');
 
                 $options = [
                     'componentId' => $state->componentId,
@@ -122,6 +123,11 @@ final readonly class FormPrimitiveHtmlRenderer implements ComponentRendererInter
                         ? '<p class="mui-field__hint" id="' . Html::escape($hintId) . '">' . Html::escape($hint) . '</p>'
                         : '',
                     'errorId' => $errorId,
+                    'errorText' => Html::escape($errorText),
+                    // Space-prefixed when it applies (no server-side error -> `hidden`), '' when an
+                    // error is present. The template concatenates it with no space of its own before
+                    // the slot, so no double space is left in the error case.
+                    'errorHiddenAttr' => $errorText === '' ? ' ' . Html::attrs(['hidden' => true]) : '',
                 ];
 
                 $params += match ($contract->name) {

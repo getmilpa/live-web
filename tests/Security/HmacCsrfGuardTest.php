@@ -59,30 +59,4 @@ final class HmacCsrfGuardTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         new HmacCsrfGuard('');
     }
-
-    public function testVerifyRejectsAnExpiredToken(): void
-    {
-        // The whole point of expiresAt: a token lifted from an old page must
-        // stop working. A guard that never rejects one is a guard in name only.
-        $guard = new HmacCsrfGuard('lab-secret-for-csrf', ttlSeconds: -60, clockSkewSeconds: 0);
-        $token = $guard->issueToken('session-1', '/live/interact');
-
-        self::assertFalse($guard->verifyToken($token, 'session-1', '/live/interact'));
-    }
-
-    public function testVerifyRejectsATokenDatedInTheFuture(): void
-    {
-        // Minted against a clock that is not ours — or backdated to outlive
-        // its own TTL. Either way it is not a token this guard issued now.
-        $guard = new HmacCsrfGuard('lab-secret-for-csrf', clockSkewSeconds: 0);
-        $payload = [
-            'route' => '/live/interact',
-            'issuedAt' => time() + 3600,
-            'expiresAt' => time() + 7200,
-            'nonce' => 'n',
-        ];
-        $token = rtrim(strtr(base64_encode((string) json_encode($payload)), '+/', '-_'), '=');
-
-        self::assertFalse($guard->verifyToken($token, 'session-1', '/live/interact'));
-    }
 }

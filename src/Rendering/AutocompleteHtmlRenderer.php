@@ -103,6 +103,13 @@ final readonly class AutocompleteHtmlRenderer implements ComponentRendererInterf
 
                 $inputId = $state->componentId . '-input';
                 $listId = $state->componentId . '-listbox';
+                // Server-truth error (ADR#8): the message is rendered into the server HTML (visible
+                // without JS), and `hidden` conceals it when there is no server-side error; with JS
+                // alive, `x-bind:hidden="!error"` follows the reactive state. Same shape as the
+                // input/select fields (FormPrimitiveHtmlRenderer) — the error used to be JS-only
+                // (x-show + x-cloak, no text).
+                $errorText = (string) ($state->data['error'] ?? '');
+                $errorId = $state->componentId . '-error';
                 return new RenderResult(
                     output: $this->templates->render($contract->defaultTemplate ?? 'components/autocomplete.latte', [
                         'componentId' => $state->componentId,
@@ -115,6 +122,9 @@ final readonly class AutocompleteHtmlRenderer implements ComponentRendererInterf
                         'listId' => $listId,
                         'name' => $name,
                         'inputName' => $inputName,
+                        'errorId' => $errorId,
+                        'errorText' => Html::escape($errorText),
+                        'errorHiddenAttr' => $errorText === '' ? ' ' . Html::attrs(['hidden' => true]) : '',
                     ]),
                     state: $state,
                     assets: $this->client->assets(),
