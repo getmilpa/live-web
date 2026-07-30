@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/getmilpa/live-web/compare/v0.2.0...v0.2.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* catch up with the family's published versions ([a88b6a8](https://github.com/getmilpa/live-web/commit/a88b6a8756d22525c81421f2bae69f4c33a89818))
+
 ## [0.2.0](https://github.com/getmilpa/live-web/compare/v0.1.2...v0.2.0) (2026-07-28)
 
 
