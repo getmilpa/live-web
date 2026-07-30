@@ -1,6 +1,16 @@
 {
   "name": "milpa/live-web",
   "description": "HTTP/HTML transport layer for Milpa Live: CSRF/HMAC/nonce security, the signed XHTML state-transfer codec, the wire-protocol LiveEndpoint controller, and the HTML/Alpine/Latte-subset renderers for the Milpa PHP framework.",
+  "keywords": [
+    "php",
+    "milpa",
+    "framework",
+    "live-components",
+    "html",
+    "csrf",
+    "security",
+    "web"
+  ],
   "type": "library",
   "license": "Apache-2.0",
   "authors": [
