@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/getmilpa/live-web/compare/v0.3.2...v0.4.0) (2026-08-26)
+
+
+### Features
+
+* **runtime:** ship the remote runtime and the page boot — the live loop's client half, and the door's assets ([#13](https://github.com/getmilpa/live-web/issues/13)) ([ddfad01](https://github.com/getmilpa/live-web/commit/ddfad011af6d630cd7e8014273681883b80e9931))
+
 ## [0.2.2](https://github.com/getmilpa/live-web/compare/v0.2.1...v0.2.2) (2026-08-01)
 
 
