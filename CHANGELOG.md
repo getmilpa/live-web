@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/getmilpa/live-web/compare/v0.4.0...v0.5.0) (2026-08-27)
+
+
+### Features
+
+* **security:** an action may declare scopeBy to authorize per a payload field, not the action name ([#15](https://github.com/getmilpa/live-web/issues/15)) ([2398cd2](https://github.com/getmilpa/live-web/commit/2398cd2e3bf037739e4fc3f80692a294f520e878))
+
 ## [0.4.0](https://github.com/getmilpa/live-web/compare/v0.3.2...v0.4.0) (2026-08-26)
 
 
