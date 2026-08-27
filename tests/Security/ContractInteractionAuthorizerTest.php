@@ -21,6 +21,10 @@ use Milpa\Live\Runtime\InMemoryComponentRegistry;
 use Milpa\Live\Security\ContractInteractionAuthorizer;
 use Milpa\Live\ValueObjects\ComponentContext;
 use Milpa\Live\ValueObjects\InteractionRequest;
+use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
+use Milpa\Live\ValueObjects\ComponentContract;
+use Milpa\Live\ValueObjects\InteractionResult;
+use Milpa\Live\ValueObjects\StateSnapshot;
 use Milpa\Live\ValueObjects\SecurityPrincipal;
 use PHPUnit\Framework\TestCase;
 
@@ -128,5 +132,50 @@ final class ContractInteractionAuthorizerTest extends TestCase
 
         self::assertFalse($result->allowed);
         self::assertArrayHasKey('scope', $result->errors);
+    }
+
+    public function testAnActionMarkedScopeByIsAuthorizedPerPayloadFieldNotPerActionName(): void
+    {
+        // greenhouse decisions/0096: an action may declare `scopeBy => '<payload field>'`, so the required
+        // scope is derived from the payload (e.g. a StateMachine's `fire` scoped per EVENT) — one generic
+        // action carries per-event authorization without a dynamic contract.
+        $component = new class () implements ComponentDefinitionInterface {
+            public static function contract(): ComponentContract
+            {
+                return new ComponentContract(name: 'demo', contractVersion: '1', actions: ['fire' => ['scopeBy' => 'event']]);
+            }
+
+            public function mount(array $props, ComponentContext $context): StateSnapshot
+            {
+                return new StateSnapshot('demo-1', 'demo', '1', ['ready' => true], ['principal' => $context->principal]);
+            }
+
+            public function handle(InteractionRequest $request): InteractionResult
+            {
+                return new InteractionResult($request->state);
+            }
+        };
+        $components = new InMemoryComponentRegistry();
+        $components->register('demo', $component);
+        $authorizer = new ContractInteractionAuthorizer($components);
+        $state = $component->mount([], new ComponentContext('demo-1')); // ownerless: isolate the SCOPE check
+
+        $fire = static fn (string $event): InteractionRequest => new InteractionRequest(
+            componentId: 'demo-1',
+            componentName: 'demo',
+            action: 'fire',
+            state: $state,
+            payload: ['event' => $event],
+        );
+
+        $canUnlock = new SecurityPrincipal('user:1', ['milpa:component:demo:unlock']);
+        self::assertTrue($authorizer->authorize($fire('unlock'), $canUnlock)->allowed, 'the unlock scope allows fire{unlock}');
+        $denied = $authorizer->authorize($fire('lock'), $canUnlock);
+        self::assertFalse($denied->allowed, 'the unlock scope does NOT allow fire{lock}');
+        self::assertSame('Missing scope: milpa:component:demo:lock', $denied->errors['scope'] ?? null, 'the missing scope is the EVENT, not the action name');
+
+        $canLock = new SecurityPrincipal('user:1', ['milpa:component:demo:lock']);
+        self::assertTrue($authorizer->authorize($fire('lock'), $canLock)->allowed, 'the lock scope allows fire{lock}');
+        self::assertFalse($authorizer->authorize($fire('unlock'), $canLock)->allowed);
     }
 }
