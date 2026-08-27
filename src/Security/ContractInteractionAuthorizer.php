@@ -71,7 +71,20 @@ final readonly class ContractInteractionAuthorizer implements InteractionAuthori
             }
         }
 
-        $scope = "milpa:component:{$request->componentName}:{$request->action}";
+        // A component may declare that an action is scoped by a PAYLOAD FIELD rather than by the action
+        // name (`actions[<action>]['scopeBy'] => '<field>'`): then the derived scope suffix is the value of
+        // that field, so one generic action (e.g. a StateMachine's `fire`) carries per-EVENT authorization
+        // without a dynamic contract (greenhouse decisions/0096). The contract, not the caller, chooses this.
+        $actionSpec = $contract->actions[$request->action];
+        $scopeKey = $request->action;
+        if (is_array($actionSpec) && is_string($actionSpec['scopeBy'] ?? null) && $actionSpec['scopeBy'] !== '') {
+            $field = $request->payload[$actionSpec['scopeBy']] ?? null;
+            if (is_string($field) && $field !== '') {
+                $scopeKey = $field;
+            }
+        }
+
+        $scope = "milpa:component:{$request->componentName}:{$scopeKey}";
         if ($principal !== null && !$principal->can($scope) && !$principal->can("milpa:component:{$request->componentName}:*")) {
             return AuthorizationResult::deny(['scope' => "Missing scope: {$scope}"]);
         }
