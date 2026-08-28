@@ -33,8 +33,16 @@
     try { return JSON.parse(el.textContent || '{}'); } catch (e) { return null; }
   }
 
+  // The signed envelope is keyed by componentId and unique in the document. The renderer may place
+  // it INSIDE the component root or as an adjacent sibling (the shared component layout appends it
+  // after the body), so look in the root first, then fall back to the whole document.
+  function envelopeScript(root, componentId) {
+    return root.querySelector('script[data-milpa-state="' + componentId + '"]')
+      || document.querySelector('script[data-milpa-state="' + componentId + '"]');
+  }
+
   function envelopeOf(root, componentId) {
-    var el = root.querySelector('script[data-milpa-state="' + componentId + '"]');
+    var el = envelopeScript(root, componentId);
     return el ? el.textContent : null;
   }
 
@@ -69,8 +77,13 @@
   // Apply the server's answer: the re-rendered HTML replaces the component root (the new root
   // carries the new signed envelope and its own x-data, so Alpine mounts it fresh), or the
   // component shows the error the server returned.
-  function apply(result, componentRoot, self) {
+  function apply(result, componentRoot, self, componentId) {
     if (result.status >= 200 && result.status < 300 && result.data && result.data.html) {
+      // The server's html is the whole component render (root + its signed envelope). If the old
+      // envelope was a SIBLING of the root (not inside it), drop it first so the swap doesn't leave a
+      // stale duplicate keyed by the same componentId.
+      var stale = componentId ? document.querySelector('script[data-milpa-state="' + componentId + '"]') : null;
+      if (stale && !componentRoot.contains(stale)) { stale.remove(); }
       componentRoot.outerHTML = result.data.html;
       return;
     }
@@ -116,7 +129,7 @@
         this.busy = true;
         this.error = null;
         return send(bootData(), root, this.componentId, action, payload)
-          .then(function (result) { apply(result, root, self); })
+          .then(function (result) { apply(result, root, self, self.componentId); })
           .catch(function (e) { self.error = e.message; })
           .then(function () { self.busy = false; self.remember(); });
       },
