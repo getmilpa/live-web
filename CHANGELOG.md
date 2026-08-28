@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/getmilpa/live-web/compare/v0.5.0...v0.6.0) (2026-08-28)
+
+
+### Features
+
+* **runtime:** the local runtime owns milpaDataTable — it now backs every local factory its renderers emit ([#17](https://github.com/getmilpa/live-web/issues/17)) ([0521dfc](https://github.com/getmilpa/live-web/commit/0521dfc6c747df8c244a366c6093d54c4766f71b))
+
+
+### Bug Fixes
+
+* **runtime:** the remote runtime finds the signed envelope wherever the renderer put it, and swaps cleanly ([#18](https://github.com/getmilpa/live-web/issues/18)) ([b42a523](https://github.com/getmilpa/live-web/commit/b42a52358d0e901a37bba38b32b78633b7127b9c))
+
 ## [0.5.0](https://github.com/getmilpa/live-web/compare/v0.4.0...v0.5.0) (2026-08-27)
 
 
