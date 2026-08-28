@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/getmilpa/live-web/compare/v0.7.0...v0.8.0) (2026-08-28)
+
+
+### Features
+
+* **runtime:** the remote runtime's transport is pluggable — a native shell can bridge the POST ([#22](https://github.com/getmilpa/live-web/issues/22)) ([822c74d](https://github.com/getmilpa/live-web/commit/822c74da9a28bd5e39022ac09679849532b41cbd))
+
 ## [0.7.0](https://github.com/getmilpa/live-web/compare/v0.6.0...v0.7.0) (2026-08-28)
 
 
