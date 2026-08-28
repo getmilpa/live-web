@@ -145,8 +145,106 @@
     };
   }
 
+  // Write the server's freshly signed envelope back into the DOM so the NEXT action echoes it. A
+  // component that renders its own dynamic lists client-side (Alpine x-for) does NOT swap its
+  // outerHTML — so, unlike milpaDataTable, it must refresh the envelope in place or the next action
+  // would replay a stale nonce (409).
+  function refreshEnvelope(root, componentId, newState) {
+    if (!newState) { return; }
+    var el = envelopeScript(root, componentId);
+    if (el) { el.textContent = newState; }
+  }
+
+  // milpaAutocomplete: server-search over the wire. The listbox and chips are rendered client-side
+  // (x-for over `items`/`selected`), so each action updates state DATA from the response and keeps the
+  // input focused — it never swaps the component. The server holds the truth: it re-validates every
+  // action against the signed envelope and hands back the authoritative items/selection + a new envelope.
+  function milpaAutocomplete(config) {
+    var cfg = config || {};
+    var initial = cfg.initialState || {};
+    var multiple = cfg.multiple === true;
+    function keyOf(item) { return String((item && (item.value != null ? item.value : item.label)) || ''); }
+    function has(list, item) { return list.some(function (c) { return keyOf(c) === keyOf(item); }); }
+    function without(items, selected) { return items.filter(function (i) { return !has(selected, i); }); }
+
+    return {
+      componentId: cfg.componentId || '',
+      query: initial.query || '',
+      selected: Array.isArray(initial.selected) ? initial.selected.slice() : [],
+      items: Array.isArray(initial.items) ? initial.items.slice() : [],
+      open: false,
+      loading: false,
+      error: null,
+      activeIndex: -1,
+
+      submit: function (action, payload, sync) {
+        var self = this;
+        var root = this.$root;
+        this.loading = true;
+        this.error = null;
+        return send(bootData(), root, this.componentId, action, payload)
+          .then(function (result) {
+            if (result.status >= 200 && result.status < 300 && result.data) {
+              refreshEnvelope(root, self.componentId, result.data.state);
+              sync(result.data.data || {});
+            } else {
+              self.error = (result.data && (result.data.message || result.data.error)) || ('live: HTTP ' + result.status);
+            }
+          })
+          .catch(function (e) { self.error = e.message; })
+          .then(function () { self.loading = false; });
+      },
+
+      search: function () {
+        var self = this;
+        this.open = true;
+        return this.submit('search', { query: this.query }, function (data) {
+          self.items = without(Array.isArray(data.items) ? data.items : [], self.selected);
+          self.activeIndex = self.items.length ? 0 : -1;
+        });
+      },
+
+      move: function (delta) {
+        if (!this.items.length) { return; }
+        var n = this.activeIndex + delta;
+        this.activeIndex = n < 0 ? this.items.length - 1 : (n >= this.items.length ? 0 : n);
+      },
+
+      selectActive: function () {
+        if (this.activeIndex >= 0 && this.items[this.activeIndex]) { this.select(this.items[this.activeIndex]); }
+      },
+
+      select: function (item) {
+        var self = this;
+        return this.submit('select', { item: item }, function (data) {
+          if (Array.isArray(data.selected)) { self.selected = multiple ? data.selected : data.selected.slice(-1); }
+          self.items = [];
+          self.query = '';
+          self.open = false;
+        });
+      },
+
+      remove: function (item) {
+        var self = this;
+        return this.submit('remove', { item: item }, function (data) {
+          if (Array.isArray(data.selected)) { self.selected = data.selected; }
+        });
+      },
+
+      clear: function () {
+        var self = this;
+        return this.submit('clear', {}, function (data) {
+          self.selected = Array.isArray(data.selected) ? data.selected : [];
+          self.items = [];
+          self.query = '';
+        });
+      },
+    };
+  }
+
   document.addEventListener('alpine:init', function () {
     window.Alpine.data('milpaDataTable', milpaDataTable);
+    window.Alpine.data('milpaAutocomplete', milpaAutocomplete);
   });
 
   window.MilpaLive = { send: send, bootData: bootData };
