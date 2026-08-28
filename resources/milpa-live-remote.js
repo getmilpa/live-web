@@ -50,28 +50,39 @@
     try { return kind === 'session' ? window.sessionStorage : window.localStorage; } catch (e) { return null; }
   }
 
-  // Send one declared action to the endpoint and hand back the parsed response.
-  function send(boot, componentRoot, componentId, action, payload) {
-    var envelope = envelopeOf(componentRoot, componentId);
-    if (!boot || !envelope) {
-      return Promise.reject(new Error('live: no boot data or no signed state on this component'));
-    }
+  // The default transport: a same-origin fetch to the endpoint. Returns { status, data }.
+  function fetchTransport(boot, requestBody) {
     var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     if (boot.authorization) { headers['Authorization'] = boot.authorization; }
     return fetch(boot.endpoint, {
       method: 'POST',
       headers: headers,
       credentials: 'same-origin',
-      body: JSON.stringify({
-        action: action,
-        payload: payload || {},
-        state: envelope,
-        sessionId: boot.sessionId,
-        csrfToken: boot.csrfToken,
-      }),
+      body: JSON.stringify(requestBody),
     }).then(function (r) {
       return r.json().then(function (data) { return { status: r.status, data: data }; });
     });
+  }
+
+  // Send one declared action and hand back the parsed response. The transport is PLUGGABLE: a host
+  // that cannot make a same-origin fetch — a native shell (Electron/WebView) whose page is file:// but
+  // whose backend is a container, for instance — sets `window.MilpaLive.transport` to route the POST
+  // through its own bridge (e.g. an IPC channel). It receives (boot, requestBody) and returns a
+  // Promise<{ status, data }>. Left unset, the runtime uses a plain fetch (a normal web page).
+  function send(boot, componentRoot, componentId, action, payload) {
+    var envelope = envelopeOf(componentRoot, componentId);
+    if (!boot || !envelope) {
+      return Promise.reject(new Error('live: no boot data or no signed state on this component'));
+    }
+    var requestBody = {
+      action: action,
+      payload: payload || {},
+      state: envelope,
+      sessionId: boot.sessionId,
+      csrfToken: boot.csrfToken,
+    };
+    var transport = (window.MilpaLive && typeof window.MilpaLive.transport === 'function') ? window.MilpaLive.transport : fetchTransport;
+    return Promise.resolve(transport(boot, requestBody));
   }
 
   // Apply the server's answer: the re-rendered HTML replaces the component root (the new root
@@ -247,5 +258,6 @@
     window.Alpine.data('milpaAutocomplete', milpaAutocomplete);
   });
 
-  window.MilpaLive = { send: send, bootData: bootData };
+  // Merge, never replace: keep any transport a host set and the local runtime's storage helpers.
+  window.MilpaLive = Object.assign(window.MilpaLive || {}, { send: send, bootData: bootData });
 }());
