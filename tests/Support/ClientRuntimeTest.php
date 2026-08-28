@@ -31,6 +31,9 @@ final class ClientRuntimeTest extends TestCase
         self::assertStringNotContainsString('fetch(', $local, 'the local runtime never touches the network (ADR#9)');
         self::assertStringContainsString("Alpine.data('milpaField'", $local);
         self::assertStringContainsString("Alpine.data('milpaCheckbox'", $local);
+        // One owner (greenhouse decisions/0145): the local runtime backs every LOCAL factory its
+        // renderers emit — milpaDataTable included (kept in storage, never over the wire).
+        self::assertStringContainsString("Alpine.data('milpaDataTable'", $local);
 
         $remote = (string) file_get_contents((string) ClientRuntime::path(ClientRuntime::REMOTE));
         self::assertStringContainsString('fetch(', $remote, 'the remote runtime is the layer that takes actions over the wire');
