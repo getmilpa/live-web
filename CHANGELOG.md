@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/getmilpa/live-web/compare/v0.6.0...v0.7.0) (2026-08-28)
+
+
+### Features
+
+* **runtime:** the remote runtime backs milpaAutocomplete — server-search over the wire, focus kept ([#20](https://github.com/getmilpa/live-web/issues/20)) ([0c2bde2](https://github.com/getmilpa/live-web/commit/0c2bde2547e5eea39b41d5653b888bb0e5f9b8a9))
+
 ## [0.6.0](https://github.com/getmilpa/live-web/compare/v0.5.0...v0.6.0) (2026-08-28)
 
 
