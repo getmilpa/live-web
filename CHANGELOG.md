@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/getmilpa/live-web/compare/v0.8.0...v0.9.0) (2026-08-29)
+
+
+### Features
+
+* StateMachineHtmlRenderer — a server-side HTML page for the state-machine contract ([#24](https://github.com/getmilpa/live-web/issues/24)) ([1334504](https://github.com/getmilpa/live-web/commit/1334504d51dacc72df21ba73384ae82d1402b769))
+
 ## [0.8.0](https://github.com/getmilpa/live-web/compare/v0.7.0...v0.8.0) (2026-08-28)
 
 
