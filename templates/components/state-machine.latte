@@ -1,0 +1,11 @@
+{layout '../layouts/component.latte'}
+{block body}
+<div {$rootAttrs|noescape}>
+<p class="mui-state-machine__state">State: <strong data-milpa-sm-state>{$current}</strong></p>
+<div class="mui-state-machine__transitions">
+{foreach $transitions as $action}
+<button type="button" class="mui-btn" data-milpa-action="{$action}">{$action}</button>
+{/foreach}
+</div>
+</div>
+{/block}
