@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/getmilpa/live-web/compare/v0.9.0...v0.10.0) (2026-09-03)
+
+
+### Features
+
+* cross-component render effects — a handler declares that another component re-paints ([#26](https://github.com/getmilpa/live-web/issues/26)) ([575ad68](https://github.com/getmilpa/live-web/commit/575ad68e0785afc5e2ab86fb533bd1e08ab4991d))
+
 ## [0.9.0](https://github.com/getmilpa/live-web/compare/v0.8.0...v0.9.0) (2026-08-29)
 
 
