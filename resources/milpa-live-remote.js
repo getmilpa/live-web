@@ -114,12 +114,21 @@
   function applyEffects(effects) {
     if (!Array.isArray(effects)) { return; }
     effects.forEach(function (effect) {
-      if (!effect || effect.type !== 'render' || !effect.target || !effect.html) { return; }
-      var target = swapById(effect.target);
-      if (!target) { return; }
-      var stale = document.querySelector('script[data-milpa-state="' + effect.target + '"]');
-      if (stale && !target.contains(stale)) { stale.remove(); }
-      target.outerHTML = effect.html;
+      if (!effect) { return; }
+      // render: the server rendered the target — swap its root by id.
+      if (effect.type === 'render' && effect.target && effect.html) {
+        var target = swapById(effect.target);
+        if (!target) { return; }
+        var stale = document.querySelector('script[data-milpa-state="' + effect.target + '"]');
+        if (stale && !target.contains(stale)) { stale.remove(); }
+        target.outerHTML = effect.html;
+        return;
+      }
+      // dispatch: SIGNAL the target — deliver a `milpa:<event>` CustomEvent it can react to (no re-render).
+      if (effect.type === 'dispatch' && effect.to && effect.event) {
+        var el = swapById(effect.to);
+        if (el) { el.dispatchEvent(new CustomEvent('milpa:' + effect.event, { detail: effect.payload || {}, bubbles: true })); }
+      }
     });
   }
 
@@ -274,9 +283,45 @@
     };
   }
 
+  // milpaFieldRemote: input / textarea / select whose value is local (typing is zero-network) but which
+  // VALIDATES on the server on blur — and applies whatever cross-component effects the handler declared. It
+  // never swaps its own root (focus/value stay put); it refreshes its signed envelope and shows the server's
+  // error. Use it (via `remote`) when a field must be authoritative, not just locally reactive.
+  function milpaFieldRemote(config) {
+    var cfg = config || {};
+    var initial = cfg.initialState || {};
+    return {
+      componentId: cfg.componentId || '',
+      value: initial.value != null ? initial.value : (cfg.value || ''),
+      error: initial.error != null ? initial.error : null,
+      busy: false,
+      init: function () {},
+      change: function (v) { this.value = v; },
+      blur: function () {
+        var self = this;
+        var root = this.$root;
+        this.busy = true;
+        send(bootData(), root, this.componentId, 'blur', { value: this.value })
+          .then(function (result) {
+            if (result.status >= 200 && result.status < 300 && result.data) {
+              refreshEnvelope(root, self.componentId, result.data.state);
+              var data = result.data.data || {};
+              if ('error' in data) { self.error = data.error; }
+              applyEffects(result.data.effects);
+            } else {
+              self.error = (result.data && (result.data.message || result.data.error)) || ('live: HTTP ' + result.status);
+            }
+          })
+          .catch(function (e) { self.error = e.message; })
+          .then(function () { self.busy = false; });
+      },
+    };
+  }
+
   document.addEventListener('alpine:init', function () {
     window.Alpine.data('milpaDataTable', milpaDataTable);
     window.Alpine.data('milpaAutocomplete', milpaAutocomplete);
+    window.Alpine.data('milpaFieldRemote', milpaFieldRemote);
   });
 
   // Merge, never replace: keep any transport a host set and the local runtime's storage helpers.

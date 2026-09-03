@@ -17,6 +17,7 @@ namespace Milpa\Live\Tests\Http;
 use Milpa\Live\Adapters\Alpine\AlpineRuntimeAdapter;
 use Milpa\Live\Components\Form\TextareaComponent;
 use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
+use Milpa\Live\Effects\DispatchEffect;
 use Milpa\Live\Effects\RenderEffect;
 use Milpa\Live\Http\LiveEndpoint;
 use Milpa\Live\Http\LiveHttpRequest;
@@ -98,6 +99,66 @@ final class LiveEndpointCrossComponentTest extends TestCase
         self::assertStringContainsString('painted from A', $effects[0]['html']);
         // The declaration was resolved into HTML — the raw {component, props} shape is gone.
         self::assertArrayNotHasKey('component', $effects[0]);
+
+        if (is_file($noncePath)) {
+            unlink($noncePath);
+        }
+    }
+
+    public function testADispatchEffectTravelsThroughToTheClientUntouched(): void
+    {
+        $noncePath = sys_get_temp_dir() . '/milpa-live-web-dispatch-' . bin2hex(random_bytes(6)) . '.json';
+        $codec = TestSecurityWiring::stateCodec($noncePath);
+        $csrf = TestSecurityWiring::csrfGuard();
+
+        $trigger = new class () implements ComponentDefinitionInterface {
+            public static function contract(): ComponentContract
+            {
+                return new ComponentContract(name: 'trigger', contractVersion: '1', actions: ['go' => ['payload' => []]]);
+            }
+
+            public function mount(array $props, ComponentContext $context): StateSnapshot
+            {
+                return new StateSnapshot($context->componentId, 'trigger', '1', ['ready' => true]);
+            }
+
+            public function handle(InteractionRequest $request): InteractionResult
+            {
+                return new InteractionResult($request->state, effects: [
+                    (new DispatchEffect(to: 'weather-panel', event: 'refresh', payload: ['city' => 'CDMX']))->toArray(),
+                ]);
+            }
+        };
+
+        $components = new InMemoryComponentRegistry();
+        $components->register('trigger', $trigger);
+
+        $endpoint = new LiveEndpoint(
+            components: $components,
+            codec: $codec,
+            authorizer: TestSecurityWiring::authorizer($components),
+            csrf: $csrf,
+            route: TestSecurityWiring::ROUTE,
+            renderers: [],
+        );
+
+        $sessionId = 'sess-dispatch-1';
+        $envelope = $codec->encodeState($trigger->mount([], new ComponentContext('trigger-d', route: TestSecurityWiring::ROUTE)));
+        $response = $endpoint->handle(new LiveHttpRequest(
+            method: 'POST',
+            action: 'go',
+            stateEnvelope: $envelope,
+            payload: [],
+            sessionId: $sessionId,
+            csrfToken: $csrf->issueToken($sessionId, TestSecurityWiring::ROUTE),
+        ));
+
+        self::assertSame(200, $response->status);
+        // A dispatch effect is client-side — the endpoint leaves it intact for the runtime to deliver.
+        self::assertSame(
+            [['type' => 'dispatch', 'to' => 'weather-panel', 'event' => 'refresh', 'payload' => ['city' => 'CDMX']]],
+            $response->body['effects'] ?? [],
+        );
 
         if (is_file($noncePath)) {
             unlink($noncePath);
