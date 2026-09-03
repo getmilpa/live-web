@@ -89,17 +89,38 @@
   // carries the new signed envelope and its own x-data, so Alpine mounts it fresh), or the
   // component shows the error the server returned.
   function apply(result, componentRoot, self, componentId) {
-    if (result.status >= 200 && result.status < 300 && result.data && result.data.html) {
-      // The server's html is the whole component render (root + its signed envelope). If the old
-      // envelope was a SIBLING of the root (not inside it), drop it first so the swap doesn't leave a
-      // stale duplicate keyed by the same componentId.
-      var stale = componentId ? document.querySelector('script[data-milpa-state="' + componentId + '"]') : null;
-      if (stale && !componentRoot.contains(stale)) { stale.remove(); }
-      componentRoot.outerHTML = result.data.html;
+    if (result.status >= 200 && result.status < 300 && result.data) {
+      if (result.data.html) {
+        // The server's html is the whole component render (root + its signed envelope). If the old
+        // envelope was a SIBLING of the root (not inside it), drop it first so the swap doesn't leave a
+        // stale duplicate keyed by the same componentId.
+        var stale = componentId ? document.querySelector('script[data-milpa-state="' + componentId + '"]') : null;
+        if (stale && !componentRoot.contains(stale)) { stale.remove(); }
+        componentRoot.outerHTML = result.data.html;
+      }
+      applyEffects(result.data.effects);
       return;
     }
     var err = (result.data && (result.data.message || result.data.error)) || ('live: HTTP ' + result.status);
     self.error = err;
+  }
+
+  // Cross-component render effects (greenhouse decisions/0189): a handler DECLARED that ANOTHER component
+  // re-paints; the server rendered it, and here the client swaps that target component's root by its id.
+  // A handler declares behaviour — "on this interaction, re-paint that component" — with no imperative JS.
+  function swapById(id) {
+    return document.querySelector('[data-milpa-component-id="' + id + '"]');
+  }
+  function applyEffects(effects) {
+    if (!Array.isArray(effects)) { return; }
+    effects.forEach(function (effect) {
+      if (!effect || effect.type !== 'render' || !effect.target || !effect.html) { return; }
+      var target = swapById(effect.target);
+      if (!target) { return; }
+      var stale = document.querySelector('script[data-milpa-state="' + effect.target + '"]');
+      if (stale && !target.contains(stale)) { stale.remove(); }
+      target.outerHTML = effect.html;
+    });
   }
 
   // milpaDataTable: selection, sort and paging over the wire; selection remembered locally.
