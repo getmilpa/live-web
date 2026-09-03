@@ -100,11 +100,16 @@ final readonly class FormPrimitiveHtmlRenderer implements ComponentRendererInter
                     'value' => $state->data[$valueKey] ?? ($valueKey === 'checked' ? false : ''),
                 ];
 
+                // A `remote` field keeps its value locally but validates on the server on blur (and applies
+                // whatever cross-component effects the handler declared) — it binds the remote Alpine factory.
+                $remote = $this->bool($request->props['remote'] ?? $state->meta['remote'] ?? false);
+                $factory = $contract->name === 'checkbox' ? 'milpaCheckbox(' : ($remote ? 'milpaFieldRemote(' : 'milpaField(');
+
                 $rootAttributes = array_merge(
                     $this->client->rootAttributes($contract, $state),
                     [
                         'class' => 'mui-field mui-field--' . $contract->name,
-                        'x-data' => ($contract->name === 'checkbox' ? 'milpaCheckbox(' : 'milpaField(')
+                        'x-data' => $factory
                             . json_encode($options, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
                         . ')',
                         'x-init' => 'init()',

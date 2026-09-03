@@ -113,6 +113,26 @@ XHTML,
      * `x-data` JSON blob; the visible `<p>` was `x-cloak`'d and its text
      * came exclusively from `x-text`, so a no-JS request never saw it.
      */
+    public function testAFieldBindsTheRemoteFactoryWhenMarkedRemote(): void
+    {
+        // A `remote` field validates on the server on blur (greenhouse decisions/0189); it binds the remote
+        // Alpine factory instead of the local one. Without the flag it stays local (zero-network).
+        $renderer = new FormPrimitiveHtmlRenderer(new AlpineRuntimeAdapter(), new XhtmlStateTransferCodec());
+
+        $remote = $renderer->render(new TextareaComponent(), new RenderRequest(
+            context: new ComponentContext('composer-message', route: '/desktop/live'),
+            props: ['name' => 'message', 'remote' => true],
+        ));
+        self::assertStringContainsString('x-data="milpaFieldRemote(', $remote->output);
+
+        $local = $renderer->render(new TextareaComponent(), new RenderRequest(
+            context: new ComponentContext('note', route: '/desktop/live'),
+            props: ['name' => 'note'],
+        ));
+        self::assertStringContainsString('x-data="milpaField(', $local->output);
+        self::assertStringNotContainsString('milpaFieldRemote', $local->output);
+    }
+
     public function testInputRendersServerSideErrorMessageAsStaticTextWithoutJs(): void
     {
         $renderer = new FormPrimitiveHtmlRenderer(new AlpineRuntimeAdapter(), new XhtmlStateTransferCodec());
