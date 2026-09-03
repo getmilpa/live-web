@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/getmilpa/live-web/compare/v0.12.0...v0.13.0) (2026-09-03)
+
+
+### Features
+
+* derived (computed) and persistent signals ([#32](https://github.com/getmilpa/live-web/issues/32)) ([614637b](https://github.com/getmilpa/live-web/commit/614637bac5e7b764f76e3d30a2142c539791286a))
+
 ## [0.12.0](https://github.com/getmilpa/live-web/compare/v0.11.0...v0.12.0) (2026-09-03)
 
 
