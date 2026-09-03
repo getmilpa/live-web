@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/getmilpa/live-web/compare/v0.11.0...v0.12.0) (2026-09-03)
+
+
+### Features
+
+* shared signals — one truth projected reactively to many components ([#30](https://github.com/getmilpa/live-web/issues/30)) ([e4a711f](https://github.com/getmilpa/live-web/commit/e4a711f300935c56fe35b2531d904e29cf222ca7))
+
 ## [0.11.0](https://github.com/getmilpa/live-web/compare/v0.10.0...v0.11.0) (2026-09-03)
 
 
