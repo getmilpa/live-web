@@ -82,11 +82,19 @@
   // updates — one truth, many projections. Backed by an Alpine store (reactive); seeded from
   // `#milpa-live-signals`. Read anywhere with `x-text="$store.milpa['<key>']"`; set with
   // `MilpaLive.signal('<key>', value)`; read with `MilpaLive.signal('<key>')`.
-  var signalSeed = {};
-  try {
-    var seedEl = document.getElementById('milpa-live-signals');
-    if (seedEl) { signalSeed = JSON.parse(seedEl.textContent || '{}') || {}; }
-  } catch (e) { signalSeed = {}; }
+  function readJson(id, fallback) {
+    try { var el = document.getElementById(id); return el ? (JSON.parse(el.textContent || 'null') || fallback) : fallback; } catch (e) { return fallback; }
+  }
+  var signalSeed = readJson('milpa-live-signals', {});          // { key: value }
+  var persistKeys = readJson('milpa-live-persist', []);         // ["key", …] — persisted to localStorage
+  var computedDefs = readJson('milpa-live-computed', {});       // { key: { template: "{a} · {b}" } }
+  var persistSet = {};
+  persistKeys.forEach(function (k) { persistSet[k] = true; });
+  function persistKey(key) { return 'milpa-signal:' + key; }
+  // Restore persisted signals over the seed, so a remembered value wins on load.
+  persistKeys.forEach(function (k) {
+    try { var raw = window.localStorage.getItem(persistKey(k)); if (raw !== null) { signalSeed[k] = JSON.parse(raw); } } catch (e) { /* a broken memory is an empty memory */ }
+  });
 
   root.signals = function () {
     return (window.Alpine && typeof window.Alpine.store === 'function') ? window.Alpine.store('milpa') : signalSeed;
@@ -95,7 +103,14 @@
     var store = root.signals();
     if (arguments.length < 2) { return store ? store[key] : undefined; }
     if (store) { store[key] = value; }
+    if (persistSet[key]) { try { window.localStorage.setItem(persistKey(key), JSON.stringify(value)); } catch (e) { /* ignore */ } }
     return value;
+  };
+  // A DERIVED signal: `key` is recomputed whenever the signals it reads change. Reading `store[dep]` inside
+  // the effect makes Alpine track the dependency, so the computed re-runs (and re-projects) automatically.
+  root.computed = function (key, fn) {
+    if (!window.Alpine || typeof window.Alpine.effect !== 'function') { return; }
+    window.Alpine.effect(function () { var store = window.Alpine.store('milpa'); if (store) { store[key] = fn(store); } });
   };
 
   window.MilpaLive = root;
@@ -247,6 +262,13 @@
     // The shared signals store — reactive, seeded from the page. Every `$store.milpa['<key>']` binding
     // tracks it, so setting one signal projects to all of them.
     if (!window.Alpine.store('milpa')) { window.Alpine.store('milpa', signalSeed); }
+    // Declarative derived signals: each `key` recomputes its template (`{dep}` → the dep's value) reactively.
+    Object.keys(computedDefs).forEach(function (key) {
+      var template = (computedDefs[key] && computedDefs[key].template) || '';
+      root.computed(key, function (store) {
+        return template.replace(/\{([^}]+)\}/g, function (_, k) { var v = store[k.trim()]; return v == null ? '' : v; });
+      });
+    });
     window.Alpine.data('milpaField', milpaField);
     window.Alpine.data('milpaCheckbox', milpaCheckbox);
     window.Alpine.data('milpaDataTable', milpaDataTable);
