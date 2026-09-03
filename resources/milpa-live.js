@@ -77,6 +77,27 @@
     return root.storage.local;
   };
 
+  // Shared reactive signals (greenhouse decisions/0189): one named value, projected to every element that
+  // reads it. A component (or the backend, via a `state` effect) sets a signal and everything bound to it
+  // updates — one truth, many projections. Backed by an Alpine store (reactive); seeded from
+  // `#milpa-live-signals`. Read anywhere with `x-text="$store.milpa['<key>']"`; set with
+  // `MilpaLive.signal('<key>', value)`; read with `MilpaLive.signal('<key>')`.
+  var signalSeed = {};
+  try {
+    var seedEl = document.getElementById('milpa-live-signals');
+    if (seedEl) { signalSeed = JSON.parse(seedEl.textContent || '{}') || {}; }
+  } catch (e) { signalSeed = {}; }
+
+  root.signals = function () {
+    return (window.Alpine && typeof window.Alpine.store === 'function') ? window.Alpine.store('milpa') : signalSeed;
+  };
+  root.signal = function (key, value) {
+    var store = root.signals();
+    if (arguments.length < 2) { return store ? store[key] : undefined; }
+    if (store) { store[key] = value; }
+    return value;
+  };
+
   window.MilpaLive = root;
 
   // milpaField: input / textarea / select. Local state + UX, remembered locally, zero network.
@@ -223,6 +244,9 @@
 
   // Register the factories BEFORE Alpine boots (this file loads before alpine.min.js).
   document.addEventListener('alpine:init', function () {
+    // The shared signals store — reactive, seeded from the page. Every `$store.milpa['<key>']` binding
+    // tracks it, so setting one signal projects to all of them.
+    if (!window.Alpine.store('milpa')) { window.Alpine.store('milpa', signalSeed); }
     window.Alpine.data('milpaField', milpaField);
     window.Alpine.data('milpaCheckbox', milpaCheckbox);
     window.Alpine.data('milpaDataTable', milpaDataTable);

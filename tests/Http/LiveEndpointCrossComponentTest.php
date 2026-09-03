@@ -19,6 +19,7 @@ use Milpa\Live\Components\Form\TextareaComponent;
 use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
 use Milpa\Live\Effects\DispatchEffect;
 use Milpa\Live\Effects\RenderEffect;
+use Milpa\Live\Effects\StateEffect;
 use Milpa\Live\Http\LiveEndpoint;
 use Milpa\Live\Http\LiveHttpRequest;
 use Milpa\Live\Rendering\FormPrimitiveHtmlRenderer;
@@ -159,6 +160,61 @@ final class LiveEndpointCrossComponentTest extends TestCase
             [['type' => 'dispatch', 'to' => 'weather-panel', 'event' => 'refresh', 'payload' => ['city' => 'CDMX']]],
             $response->body['effects'] ?? [],
         );
+
+        if (is_file($noncePath)) {
+            unlink($noncePath);
+        }
+    }
+
+    public function testAStateEffectTravelsThroughToTheClientUntouched(): void
+    {
+        $noncePath = sys_get_temp_dir() . '/milpa-live-web-state-' . bin2hex(random_bytes(6)) . '.json';
+        $codec = TestSecurityWiring::stateCodec($noncePath);
+        $csrf = TestSecurityWiring::csrfGuard();
+
+        $trigger = new class () implements ComponentDefinitionInterface {
+            public static function contract(): ComponentContract
+            {
+                return new ComponentContract(name: 'trigger', contractVersion: '1', actions: ['set' => ['payload' => []]]);
+            }
+
+            public function mount(array $props, ComponentContext $context): StateSnapshot
+            {
+                return new StateSnapshot($context->componentId, 'trigger', '1', ['ready' => true]);
+            }
+
+            public function handle(InteractionRequest $request): InteractionResult
+            {
+                return new InteractionResult($request->state, effects: [
+                    (new StateEffect(key: 'session.state', value: 'ready'))->toArray(),
+                ]);
+            }
+        };
+
+        $components = new InMemoryComponentRegistry();
+        $components->register('trigger', $trigger);
+        $endpoint = new LiveEndpoint(
+            components: $components,
+            codec: $codec,
+            authorizer: TestSecurityWiring::authorizer($components),
+            csrf: $csrf,
+            route: TestSecurityWiring::ROUTE,
+            renderers: [],
+        );
+
+        $sessionId = 'sess-state-1';
+        $envelope = $codec->encodeState($trigger->mount([], new ComponentContext('trigger-s', route: TestSecurityWiring::ROUTE)));
+        $response = $endpoint->handle(new LiveHttpRequest(
+            method: 'POST',
+            action: 'set',
+            stateEnvelope: $envelope,
+            payload: [],
+            sessionId: $sessionId,
+            csrfToken: $csrf->issueToken($sessionId, TestSecurityWiring::ROUTE),
+        ));
+
+        self::assertSame(200, $response->status);
+        self::assertSame([['type' => 'state', 'key' => 'session.state', 'value' => 'ready']], $response->body['effects'] ?? []);
 
         if (is_file($noncePath)) {
             unlink($noncePath);

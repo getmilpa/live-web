@@ -128,6 +128,11 @@
       if (effect.type === 'dispatch' && effect.to && effect.event) {
         var el = swapById(effect.to);
         if (el) { el.dispatchEvent(new CustomEvent('milpa:' + effect.event, { detail: effect.payload || {}, bubbles: true })); }
+        return;
+      }
+      // state: set a SHARED signal — one truth projected to every element that reads it (no target needed).
+      if (effect.type === 'state' && effect.key) {
+        if (window.MilpaLive && typeof window.MilpaLive.signal === 'function') { window.MilpaLive.signal(effect.key, effect.value); }
       }
     });
   }
