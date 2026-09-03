@@ -17,6 +17,7 @@ namespace Milpa\Live\Http;
 use Milpa\Interfaces\Event\MilpaEventDispatcherInterface;
 use Milpa\Live\Contracts\Component\ComponentRegistryInterface;
 use Milpa\Live\Contracts\Rendering\ComponentRendererInterface;
+use Milpa\Live\Effects\RenderEffect;
 use Milpa\Live\Contracts\Security\CsrfGuardInterface;
 use Milpa\Live\Contracts\Security\InteractionAuthorizerInterface;
 use Milpa\Live\Contracts\Security\ReplayedNonceException;
@@ -188,12 +189,56 @@ final readonly class LiveEndpoint
             'data' => $result->state->data,
             'state' => $this->codec->encodeState($result->state),
             'html' => $html,
-            'effects' => $result->effects,
+            'effects' => $this->resolveEffects($result->effects),
             'errors' => $result->errors,
         ]);
 
         LiveEventEmitter::liveResponded($this->dispatcher, $interaction, $response, $intercepted);
 
         return $response;
+    }
+
+    /**
+     * Resolve cross-component render effects: a `{type: render, target, component, props}` effect a handler
+     * returned is turned into `{type: render, target, html}` by rendering the named target component with its
+     * props (greenhouse decisions/0189). The client swaps the target's root — so a handler DECLARES that
+     * another component re-paints, and the framework renders it. Other effects pass through untouched.
+     *
+     * @param array<int, array<string, mixed>> $effects
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function resolveEffects(array $effects): array
+    {
+        $resolved = [];
+        foreach ($effects as $effect) {
+            $target = $effect['target'] ?? null;
+            $name = $effect['component'] ?? null;
+            if (($effect['type'] ?? null) !== RenderEffect::TYPE || !\is_string($target) || !\is_string($name)) {
+                $resolved[] = $effect;
+
+                continue;
+            }
+
+            $renderer = $this->renderers[$name] ?? null;
+            if (!$this->components->has($name) || !$renderer instanceof ComponentRendererInterface || !$renderer->supportsTarget(RenderTarget::HTML)) {
+                $resolved[] = $effect; // the target is not renderable here — leave the declaration for the client to see
+
+                continue;
+            }
+
+            $component = $this->components->get($name);
+            $context = new ComponentContext(componentId: $target);
+            $props = \is_array($effect['props'] ?? null) ? $effect['props'] : [];
+            $rendered = $renderer->render($component, new RenderRequest(
+                context: $context,
+                props: $this->renderProps[$name] ?? [],
+                state: $component->mount($props, $context),
+                target: RenderTarget::HTML,
+            ));
+            $resolved[] = ['type' => RenderEffect::TYPE, 'target' => $target, 'html' => $rendered->output];
+        }
+
+        return $resolved;
     }
 }
