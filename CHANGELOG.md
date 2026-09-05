@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/getmilpa/live-web/compare/v0.13.0...v0.14.0) (2026-09-05)
+
+
+### Features
+
+* **runtime:** one runtime per page — MilpaLive.register, a double-load guard, LiveBoot as the one emitter, a composite endpoint ([#34](https://github.com/getmilpa/live-web/issues/34)) ([bf3b8c0](https://github.com/getmilpa/live-web/commit/bf3b8c05fd4aeae1c6a41c4a8f29b28b521f65fc))
+
 ## [0.13.0](https://github.com/getmilpa/live-web/compare/v0.12.0...v0.13.0) (2026-09-03)
 
 
