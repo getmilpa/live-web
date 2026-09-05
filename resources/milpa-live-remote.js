@@ -19,6 +19,14 @@
  * localStorage (or sessionStorage when `storage: 'session'`) so a reload keeps what the human chose.
  * That is UX memory, not truth: the server re-validates every action against the signed state.
  *
+ * One runtime per page (greenhouse decisions/0211): this module registers its factories through the local
+ * runtime's `MilpaLive.register()` — the same path a plugin module uses — and REQUIRES the local runtime to
+ * have loaded first (it throws otherwise; LiveBoot::html() emits both in order). It is the one module allowed
+ * to REPLACE a built-in: `milpaDataTable` becomes the over-the-wire variant via the explicit
+ * `register(name, factory, { replace: true })`, which is reserved for runtime modules — a plugin never
+ * replaces anything. Loading this file twice is refused like the local runtime: the second copy warns and
+ * returns, so the replacement happens once and the other factories are never re-registered (which would throw).
+ *
  * No-build (ADR#10): hand-written, readable, served as-is. Loads after milpa-live.js and before
  * alpine.min.js; all three `defer`, so they run in document order.
  *
@@ -27,10 +35,35 @@
 (function () {
   'use strict';
 
+  var runtime = window.MilpaLive;
+  if (!runtime || typeof runtime.register !== 'function') {
+    throw new Error('[milpa-live-remote] the local runtime (milpa-live.js) must load first — LiveBoot::html() emits both in order (greenhouse decisions/0211)');
+  }
+
+  // DOUBLE-LOAD GUARD, mirrored from the local runtime: a second copy of this module (a guest shipping its own
+  // at another URL) would replace `milpaDataTable` again and then throw on `milpaAutocomplete` — half-applied.
+  // It is refused whole, loudly, and the first copy stands.
+  if (runtime.__remoteLoaded) {
+    console.warn('[milpa-live-remote] runtime loaded twice; ignoring the second copy');
+    return;
+  }
+
   function bootData() {
     var el = document.getElementById('milpa-live-boot');
     if (!el) { return null; }
     try { return JSON.parse(el.textContent || '{}'); } catch (e) { return null; }
+  }
+
+  // CSRF refresh (greenhouse decisions/0211): when the endpoint answers with a fresh `csrfToken` (the one
+  // presented had a tenth of its life left), keep it in the boot — the ONE place this runtime reads the
+  // token from — so the NEXT action presents the fresh one. The session id never changes.
+  function refreshCsrf(data) {
+    if (!data || typeof data.csrfToken !== 'string' || data.csrfToken === '') { return; }
+    var el = document.getElementById('milpa-live-boot');
+    var boot = bootData();
+    if (!el || !boot) { return; }
+    boot.csrfToken = data.csrfToken;
+    el.textContent = JSON.stringify(boot);
   }
 
   // The signed envelope is keyed by componentId and unique in the document. The renderer may place
@@ -82,7 +115,10 @@
       csrfToken: boot.csrfToken,
     };
     var transport = (window.MilpaLive && typeof window.MilpaLive.transport === 'function') ? window.MilpaLive.transport : fetchTransport;
-    return Promise.resolve(transport(boot, requestBody));
+    return Promise.resolve(transport(boot, requestBody)).then(function (result) {
+      if (result && result.status >= 200 && result.status < 300) { refreshCsrf(result.data); }
+      return result;
+    });
   }
 
   // Apply the server's answer: the re-rendered HTML replaces the component root (the new root
@@ -323,12 +359,12 @@
     };
   }
 
-  document.addEventListener('alpine:init', function () {
-    window.Alpine.data('milpaDataTable', milpaDataTable);
-    window.Alpine.data('milpaAutocomplete', milpaAutocomplete);
-    window.Alpine.data('milpaFieldRemote', milpaFieldRemote);
-  });
+  // Through the local runtime's registry: the data table REPLACES the local variant (the one explicit,
+  // runtime-reserved override); the other two are new names and register like any plugin module would.
+  runtime.register('milpaDataTable', milpaDataTable, { replace: true });
+  runtime.register('milpaAutocomplete', milpaAutocomplete);
+  runtime.register('milpaFieldRemote', milpaFieldRemote);
 
   // Merge, never replace: keep any transport a host set and the local runtime's storage helpers.
-  window.MilpaLive = Object.assign(window.MilpaLive || {}, { send: send, bootData: bootData });
+  window.MilpaLive = Object.assign(runtime, { send: send, bootData: bootData, __remoteLoaded: true });
 }());

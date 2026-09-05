@@ -17,6 +17,7 @@ namespace Milpa\Live\Http;
 use Milpa\Live\Contracts\Security\CsrfGuardInterface;
 use Milpa\Live\Support\ClientRuntime;
 use Milpa\Live\Support\Html;
+use Milpa\Live\ValueObjects\ClientAssets;
 
 /**
  * What a page must embed so the remote runtime can take a component's action over the wire.
@@ -27,9 +28,17 @@ use Milpa\Live\Support\Html;
  * script tags that load the two runtimes and the vendored Alpine in the order they need
  * (greenhouse decisions/0083: the remote runtime is another layer; the page declares its boot).
  *
+ * It is also the ONE emitter of the client runtime (greenhouse decisions/0211): a host never
+ * hand-writes runtime `<script>` tags — it hands {@see html()} the {@see ClientAssets} its compiled
+ * page declared, and gets back the stylesheets, the boot, the local runtime, the remote runtime, the
+ * plugin modules and Alpine, each once and in that order. One runtime per page: a guest never loads
+ * Alpine or `milpa-live.js` itself.
+ *
  * It holds no secret: the CSRF token is opaque to the client and bound to this session id and this
  * route by {@see CsrfGuardInterface::issueToken()}; whoever echoes it must also present the matching
- * session id, and the endpoint verifies both.
+ * session id, and the endpoint verifies both. The session id travels in this payload: the runtime
+ * echoes it in every request body, and the host's adapter is to fill `LiveHttpRequest::$sessionId`
+ * from there — not from a cookie another page set.
  */
 final readonly class LiveBoot
 {
@@ -55,7 +64,8 @@ final readonly class LiveBoot
      *
      * The session id is random and per page load: it is not an identity (the principal comes from
      * the request's authentication, never from here), only the binding the CSRF token is checked
-     * against.
+     * against. It is what the runtime echoes as `sessionId` on every action, so a host adapter needs
+     * no cookie to know which session a token was issued for.
      */
     public static function issue(CsrfGuardInterface $csrf, string $endpoint, ?string $authorization = null): self
     {
@@ -95,18 +105,44 @@ final readonly class LiveBoot
     }
 
     /**
-     * The boot tag followed by the runtime script tags in load order — local runtime, remote
-     * runtime, Alpine — each `defer` so they run after the document, in document order.
+     * Everything the page loads, in the one order that works — each URL once:
      *
-     * @param array<string, string>|null $assets the URLs the assets are served at; defaults to {@see ClientRuntime::defaultUrls()}
+     * 1. every declared stylesheet, as `<link rel="stylesheet">` (before any script, so the first
+     *    paint is styled);
+     * 2. the boot tag;
+     * 3. the local runtime (`milpa-live.js`) — it owns `MilpaLive.register()` and the built-in
+     *    factories;
+     * 4. the remote runtime (`milpa-live-remote.js`) — it registers through the same path;
+     * 5. every declared plugin script, in declared order — each calls `MilpaLive.register(...)`;
+     * 6. Alpine, last — it starts and flushes the registrations.
+     *
+     * Every script is `defer`, so they run after the document in document order. A declared script
+     * that names one of the three runtime files is skipped: the host emits the runtime, a plugin
+     * never does (greenhouse decisions/0211).
+     *
+     * @param array<string, string>|null $assets       the URLs the runtime files are served at; defaults to {@see ClientRuntime::defaultUrls()}
+     * @param ClientAssets|null          $clientAssets what the compiled page declared (see `RenderResult::clientAssets()`); null or empty for none
      */
-    public function html(?array $assets = null): string
+    public function html(?array $assets = null, ?ClientAssets $clientAssets = null): string
     {
         $urls = $assets ?? ClientRuntime::defaultUrls();
-        $tags = [$this->scriptTag()];
-        foreach ([ClientRuntime::LOCAL, ClientRuntime::REMOTE, ClientRuntime::ALPINE] as $name) {
-            $tags[] = '<script src="' . Html::escape($urls[$name]) . '" defer></script>';
+        $declared = $clientAssets ?? ClientAssets::empty();
+        $runtime = [$urls[ClientRuntime::LOCAL], $urls[ClientRuntime::REMOTE], $urls[ClientRuntime::ALPINE]];
+        $script = static fn (string $src): string => '<script src="' . Html::escape($src) . '" defer></script>';
+
+        $tags = [];
+        foreach ($declared->styles as $href) {
+            $tags[] = '<link rel="stylesheet" href="' . Html::escape($href) . '">';
         }
+        $tags[] = $this->scriptTag();
+        $tags[] = $script($urls[ClientRuntime::LOCAL]);
+        $tags[] = $script($urls[ClientRuntime::REMOTE]);
+        foreach ($declared->scripts as $src) {
+            if (!\in_array($src, $runtime, true)) {
+                $tags[] = $script($src);
+            }
+        }
+        $tags[] = $script($urls[ClientRuntime::ALPINE]);
 
         return implode("\n", $tags);
     }

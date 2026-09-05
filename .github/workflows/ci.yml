@@ -58,3 +58,11 @@ jobs:
 
       - name: Attribution gate
         run: php tools/verify-attribution.php
+
+      - name: Setup Node (client runtime tests)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Client runtime tests (node:test, no install)
+        run: node --test 'tests/js/**/*.test.mjs'

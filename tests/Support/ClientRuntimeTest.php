@@ -29,17 +29,21 @@ final class ClientRuntimeTest extends TestCase
     {
         $local = (string) file_get_contents((string) ClientRuntime::path(ClientRuntime::LOCAL));
         self::assertStringNotContainsString('fetch(', $local, 'the local runtime never touches the network (ADR#9)');
-        self::assertStringContainsString("Alpine.data('milpaField'", $local);
-        self::assertStringContainsString("Alpine.data('milpaCheckbox'", $local);
+        // The built-ins are bound through the same register() a plugin uses (greenhouse decisions/0211),
+        // so the one registry owns them and a plugin picking one of their names fails loudly.
+        self::assertStringContainsString("register('milpaField'", $local);
+        self::assertStringContainsString("register('milpaCheckbox'", $local);
         // One owner (greenhouse decisions/0145): the local runtime backs every LOCAL factory its
         // renderers emit — milpaDataTable included (kept in storage, never over the wire).
-        self::assertStringContainsString("Alpine.data('milpaDataTable'", $local);
+        self::assertStringContainsString("register('milpaDataTable'", $local);
+        self::assertStringContainsString('runtime loaded twice; ignoring the second copy', $local, 'the double-load guard');
 
         $remote = (string) file_get_contents((string) ClientRuntime::path(ClientRuntime::REMOTE));
         self::assertStringContainsString('fetch(', $remote, 'the remote runtime is the layer that takes actions over the wire');
-        self::assertStringContainsString("Alpine.data('milpaDataTable'", $remote);
+        self::assertStringContainsString("register('milpaDataTable', milpaDataTable, { replace: true })", $remote, 'the one explicit, runtime-reserved replace');
         self::assertStringContainsString('milpa-live-boot', $remote);
         self::assertStringContainsString('data-milpa-state', $remote, 'it echoes the envelope the server signed');
+        self::assertStringNotContainsString('Alpine.data(', $remote, 'the remote never binds behind the registry\'s back');
     }
 
     public function testTheDefaultUrlsKeepTheAdaptersPromise(): void

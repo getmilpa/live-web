@@ -20,8 +20,10 @@ use DOMNode;
 use DOMText;
 use Milpa\Live\Contracts\Component\ComponentRegistryInterface;
 use Milpa\Live\Contracts\Rendering\ComponentRendererInterface;
+use Milpa\Live\Contracts\Rendering\DeclaresClientAssets;
 use Milpa\Live\Contracts\Rendering\MarkupCompilerInterface;
 use Milpa\Live\Support\Html;
+use Milpa\Live\ValueObjects\ClientAssets;
 use Milpa\Live\ValueObjects\ComponentContext;
 use Milpa\Live\ValueObjects\RenderRequest;
 use Milpa\Live\ValueObjects\RenderResult;
@@ -34,16 +36,24 @@ use Milpa\Live\ValueObjects\RenderTarget;
  * plain escaped/passthrough markup. This is the bridge between authoring
  * component trees as markup and the {@see ComponentRendererInterface}
  * pipeline every renderer in this package implements.
+ *
+ * Declared views (greenhouse decisions/0211): every renderer met while
+ * compiling — root or nested — that implements {@see DeclaresClientAssets}
+ * contributes its {@see ClientAssets}; they are merged (deduplicated by URL,
+ * first-seen order) into the result's {@see RenderResult::clientAssets()},
+ * so the host emits each file once through `LiveBoot::html()`. The legacy
+ * string-keyed {@see RenderResult::$assets} bag keeps its `array_merge`
+ * semantics untouched.
  */
 final readonly class XhtmlComponentCompiler implements MarkupCompilerInterface
 {
     /**
-     * @param array<string, ComponentRendererInterface> $renderers
-     * @param array<string, array<string, mixed>>       $defaults
+     * @param array<string, ComponentRendererInterface>|ComponentRendererRegistry $renderers component name => renderer, or a registry answering {@see ComponentRendererRegistry::resolveFor()} per name (its `registerFor()`ed renderers only — like the array, no fallback)
+     * @param array<string, array<string, mixed>>                                 $defaults
      */
     public function __construct(
         private ComponentRegistryInterface $components,
-        private array $renderers,
+        private array|ComponentRendererRegistry $renderers,
         private array $defaults = [],
     ) {
     }
@@ -59,25 +69,38 @@ final readonly class XhtmlComponentCompiler implements MarkupCompilerInterface
             throw new \RuntimeException('Expected exactly one root Milpa component element.');
         }
 
-        return $this->renderNode($nodes[0], $context);
+        $declared = ClientAssets::empty();
+        $rendered = $this->renderNode($nodes[0], $context, $declared);
+
+        return new RenderResult(
+            output: $rendered->output,
+            state: $rendered->state,
+            assets: $rendered->assets,
+            effects: $rendered->effects,
+            format: $rendered->format,
+            clientAssets: $declared,
+        );
     }
 
     /**
      * Compiles markup that may contain multiple sibling root Milpa component
      * elements, concatenating their rendered output. The returned
      * {@see RenderResult}'s `state`/`format` are taken from the first node
-     * rendered; `assets` are merged across every node.
+     * rendered; `assets` are merged across every node (`array_merge`, legacy
+     * string keys), and the declared {@see ClientAssets} of every renderer
+     * met are merged by URL.
      */
     public function compileFragment(string $markup, ComponentContext $context): RenderResult
     {
         $nodes = $this->parseComponents($markup);
         $output = [];
         $assets = [];
+        $declared = ClientAssets::empty();
         $state = null;
         $format = null;
 
         foreach ($nodes as $node) {
-            $rendered = $this->renderNode($node, $context);
+            $rendered = $this->renderNode($node, $context, $declared);
             $output[] = $rendered->output;
             $assets = array_merge($assets, $rendered->assets);
             $state ??= $rendered->state;
@@ -89,10 +112,11 @@ final readonly class XhtmlComponentCompiler implements MarkupCompilerInterface
             state: $state,
             assets: $assets,
             format: $format ?? RenderTarget::HTML,
+            clientAssets: $declared,
         );
     }
 
-    private function renderNode(DOMElement $node, ComponentContext $context): RenderResult
+    private function renderNode(DOMElement $node, ComponentContext $context, ClientAssets &$declared): RenderResult
     {
         $componentName = $this->componentName($node);
 
@@ -100,20 +124,26 @@ final readonly class XhtmlComponentCompiler implements MarkupCompilerInterface
             throw new \RuntimeException("No component registered for <{$node->tagName}>.");
         }
 
-        if (!isset($this->renderers[$componentName])) {
+        $renderer = $this->rendererFor($componentName);
+        if ($renderer === null) {
             throw new \RuntimeException("No renderer registered for component: {$componentName}");
+        }
+
+        // Document order: the outer component's files before its children's, siblings left to right.
+        if ($renderer instanceof DeclaresClientAssets) {
+            $declared = $declared->merge($renderer->clientAssets());
         }
 
         $component = $this->components->get($componentName);
         $props = array_merge($this->defaults[$componentName] ?? [], $this->props($node));
-        $children = $this->renderChildren($node, $context);
+        $children = $this->renderChildren($node, $context, $declared);
         if (trim($children) !== '') {
             $props['childrenHtml'] = $children;
             $props['childrenOutput'] = $children;
         }
         $componentId = (string) ($props['id'] ?? $props['name'] ?? $context->componentId . '-' . $componentName . '-' . substr(sha1($node->getNodePath() ?: $node->tagName), 0, 8));
 
-        return $this->renderers[$componentName]->render($component, new RenderRequest(
+        $rendered = $renderer->render($component, new RenderRequest(
             context: new ComponentContext(
                 componentId: $componentId,
                 principal: $context->principal,
@@ -123,6 +153,18 @@ final readonly class XhtmlComponentCompiler implements MarkupCompilerInterface
             ),
             props: $props,
         ));
+        $declared = $declared->merge($rendered->clientAssets());
+
+        return $rendered;
+    }
+
+    private function rendererFor(string $componentName): ?ComponentRendererInterface
+    {
+        if ($this->renderers instanceof ComponentRendererRegistry) {
+            return $this->renderers->resolveFor($componentName, RenderTarget::HTML);
+        }
+
+        return $this->renderers[$componentName] ?? null;
     }
 
     /**
@@ -177,17 +219,17 @@ final readonly class XhtmlComponentCompiler implements MarkupCompilerInterface
         return $node->prefix === 'milpa' || str_starts_with($node->tagName, 'milpa-');
     }
 
-    private function renderChildren(DOMElement $node, ComponentContext $context): string
+    private function renderChildren(DOMElement $node, ComponentContext $context, ClientAssets &$declared): string
     {
         $html = [];
         foreach ($node->childNodes as $child) {
-            $html[] = $this->renderChild($child, $context);
+            $html[] = $this->renderChild($child, $context, $declared);
         }
 
         return implode('', $html);
     }
 
-    private function renderChild(DOMNode $node, ComponentContext $context): string
+    private function renderChild(DOMNode $node, ComponentContext $context, ClientAssets &$declared): string
     {
         if ($node instanceof DOMText) {
             return Html::escape($node->nodeValue ?? '');
@@ -198,7 +240,7 @@ final readonly class XhtmlComponentCompiler implements MarkupCompilerInterface
         }
 
         if ($this->isMilpaElement($node)) {
-            return $this->renderNode($node, $context)->output;
+            return $this->renderNode($node, $context, $declared)->output;
         }
 
         $attributes = [];
@@ -210,7 +252,7 @@ final readonly class XhtmlComponentCompiler implements MarkupCompilerInterface
         $open = '<' . $node->tagName . ($attrs !== '' ? ' ' . $attrs : '') . '>';
         $close = '</' . $node->tagName . '>';
 
-        return $open . $this->renderChildren($node, $context) . $close;
+        return $open . $this->renderChildren($node, $context, $declared) . $close;
     }
 
     /**

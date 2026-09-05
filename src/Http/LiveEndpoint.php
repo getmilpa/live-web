@@ -17,18 +17,21 @@ namespace Milpa\Live\Http;
 use Milpa\Interfaces\Event\MilpaEventDispatcherInterface;
 use Milpa\Live\Contracts\Component\ComponentRegistryInterface;
 use Milpa\Live\Contracts\Rendering\ComponentRendererInterface;
-use Milpa\Live\Effects\RenderEffect;
 use Milpa\Live\Contracts\Security\CsrfGuardInterface;
+use Milpa\Live\Contracts\Security\CsrfTokenLifetimeInterface;
 use Milpa\Live\Contracts\Security\InteractionAuthorizerInterface;
 use Milpa\Live\Contracts\Security\ReplayedNonceException;
 use Milpa\Live\Contracts\Transport\StateTransferCodecInterface;
+use Milpa\Live\Effects\RenderEffect;
 use Milpa\Live\Events\LiveEventEmitter;
+use Milpa\Live\Rendering\ComponentRendererRegistry;
 use Milpa\Live\ValueObjects\ComponentContext;
 use Milpa\Live\ValueObjects\InteractionRequest;
 use Milpa\Live\ValueObjects\InteractionResult;
 use Milpa\Live\ValueObjects\RenderRequest;
 use Milpa\Live\ValueObjects\RenderTarget;
 use Milpa\Live\ValueObjects\SecurityPrincipal;
+use Milpa\Live\ValueObjects\StateSnapshot;
 
 /**
  * The HTTP live loop terminus: verifies a request, dispatches it to a
@@ -45,12 +48,32 @@ use Milpa\Live\ValueObjects\SecurityPrincipal;
  * proves the state hasn't been tampered with since this server last saw it;
  * `action`/`payload` are ordinary untrusted input, constrained instead by
  * the CSRF guard and the contract-based action allowlist.
+ *
+ * One endpoint per page (greenhouse decisions/0211): `$components` may be a
+ * {@see \Milpa\Live\Runtime\CompositeComponentRegistry} over the host's and
+ * every plugin's components (only `has`/`get` are needed), and `$renderers`
+ * may be a {@see ComponentRendererRegistry} instead of a hand-wired
+ * name => renderer array — it answers per name (`registerFor()`), exactly
+ * what the array did — then one endpoint re-renders every plugin's
+ * components and a {@see RenderEffect} resolves across layers.
+ *
+ * The session id the CSRF token is checked against is
+ * {@see LiveHttpRequest::$sessionId}, and the contract is that the host's
+ * adapter fills it from the request body's `sessionId` — the runtime echoes
+ * the boot the host issued with {@see LiveBoot::issue()} — not from a cookie.
+ * This endpoint cannot see where the adapter took it from; keeping that
+ * contract is the adapter's job.
  */
 final readonly class LiveEndpoint
 {
     /**
-     * @param array<string, ComponentRendererInterface> $renderers   component name => renderer used to re-render after handle()
-     * @param array<string, array<string, mixed>>       $renderProps component name => base render props needed to re-render faithfully (e.g. the live endpoint URL)
+     * Below this fraction of its TTL, a presented CSRF token is refreshed in the response.
+     */
+    private const float CSRF_REFRESH_FRACTION = 0.1;
+
+    /**
+     * @param array<string, ComponentRendererInterface>|ComponentRendererRegistry $renderers   component name => renderer used to re-render after handle(), or a registry answering {@see ComponentRendererRegistry::resolveFor()} per name (its `registerFor()`ed renderers only — like the array, no fallback)
+     * @param array<string, array<string, mixed>>                                 $renderProps component name => base render props needed to re-render faithfully (e.g. the live endpoint URL)
      */
     public function __construct(
         private ComponentRegistryInterface $components,
@@ -58,7 +81,7 @@ final readonly class LiveEndpoint
         private InteractionAuthorizerInterface $authorizer,
         private CsrfGuardInterface $csrf,
         private string $route,
-        private array $renderers = [],
+        private array|ComponentRendererRegistry $renderers = [],
         private array $renderProps = [],
         private ?MilpaEventDispatcherInterface $dispatcher = null,
     ) {
@@ -79,6 +102,11 @@ final readonly class LiveEndpoint
      * {@see \Milpa\Live\Contracts\Security\TokenVerifierInterface}) —
      * this method only consumes it for authorization, it does not
      * perform authentication itself.
+     *
+     * When the guard implements {@see CsrfTokenLifetimeInterface} and the
+     * presented token has less than a tenth of its TTL left, the OK response
+     * carries a fresh `csrfToken` for the same session and route; the remote
+     * runtime stores it in the boot for the next action.
      */
     public function handle(LiveHttpRequest $request, ?SecurityPrincipal $principal = null): LiveHttpResponse
     {
@@ -167,8 +195,8 @@ final readonly class LiveEndpoint
         }
 
         $html = null;
-        $renderer = $this->renderers[$snapshot->componentName] ?? null;
-        if ($renderer instanceof ComponentRendererInterface && $renderer->supportsTarget(RenderTarget::HTML)) {
+        $renderer = $this->rendererFor($snapshot->componentName);
+        if ($renderer !== null) {
             $rendered = $renderer->render($component, new RenderRequest(
                 context: new ComponentContext(
                     componentId: $snapshot->componentId,
@@ -182,7 +210,7 @@ final readonly class LiveEndpoint
             $html = $rendered->output;
         }
 
-        $response = LiveHttpResponse::ok([
+        $body = [
             'componentId' => $result->state->componentId,
             'componentName' => $result->state->componentName,
             'action' => $request->action,
@@ -191,7 +219,12 @@ final readonly class LiveEndpoint
             'html' => $html,
             'effects' => $this->resolveEffects($result->effects),
             'errors' => $result->errors,
-        ]);
+        ];
+        $refreshed = $this->refreshedCsrfToken($request);
+        if ($refreshed !== null) {
+            $body['csrfToken'] = $refreshed;
+        }
+        $response = LiveHttpResponse::ok($body);
 
         LiveEventEmitter::liveResponded($this->dispatcher, $interaction, $response, $intercepted);
 
@@ -204,6 +237,11 @@ final readonly class LiveEndpoint
      * props (greenhouse decisions/0189). The client swaps the target's root — so a handler DECLARES that
      * another component re-paints, and the framework renders it. Other effects pass through untouched.
      *
+     * An effect that also carries `state` — the target's current signed envelope — re-renders the target from
+     * that state instead of mounting it fresh (greenhouse decisions/0211); an envelope that fails verification,
+     * or that belongs to another component, is ignored and the fresh mount stands. Whether or not the target
+     * renders here, `state` is consumed and stripped: the envelope never travels back raw.
+     *
      * @param array<int, array<string, mixed>> $effects
      *
      * @return array<int, array<string, mixed>>
@@ -212,16 +250,19 @@ final readonly class LiveEndpoint
     {
         $resolved = [];
         foreach ($effects as $effect) {
-            $target = $effect['target'] ?? null;
-            $name = $effect['component'] ?? null;
-            if (($effect['type'] ?? null) !== RenderEffect::TYPE || !\is_string($target) || !\is_string($name)) {
+            if (($effect['type'] ?? null) !== RenderEffect::TYPE) {
                 $resolved[] = $effect;
 
                 continue;
             }
 
-            $renderer = $this->renderers[$name] ?? null;
-            if (!$this->components->has($name) || !$renderer instanceof ComponentRendererInterface || !$renderer->supportsTarget(RenderTarget::HTML)) {
+            $envelope = \is_string($effect['state'] ?? null) ? $effect['state'] : null;
+            unset($effect['state']);
+
+            $target = $effect['target'] ?? null;
+            $name = $effect['component'] ?? null;
+            $renderer = \is_string($name) && $this->components->has($name) ? $this->rendererFor($name) : null;
+            if (!\is_string($target) || !\is_string($name) || $renderer === null) {
                 $resolved[] = $effect; // the target is not renderable here — leave the declaration for the client to see
 
                 continue;
@@ -230,15 +271,56 @@ final readonly class LiveEndpoint
             $component = $this->components->get($name);
             $context = new ComponentContext(componentId: $target);
             $props = \is_array($effect['props'] ?? null) ? $effect['props'] : [];
+            $current = $envelope !== null ? $this->currentStateOf($envelope, $target, $name) : null;
             $rendered = $renderer->render($component, new RenderRequest(
                 context: $context,
                 props: $this->renderProps[$name] ?? [],
-                state: $component->mount($props, $context),
+                state: $current ?? $component->mount($props, $context),
                 target: RenderTarget::HTML,
             ));
             $resolved[] = ['type' => RenderEffect::TYPE, 'target' => $target, 'html' => $rendered->output];
         }
 
         return $resolved;
+    }
+
+    /**
+     * The verified snapshot inside `$envelope` when it is the target's own — null for anything else
+     * (tampered, replayed, expired, or signed for another component id/name), so a bad envelope is
+     * never rendered from.
+     */
+    private function currentStateOf(string $envelope, string $target, string $componentName): ?StateSnapshot
+    {
+        try {
+            $snapshot = $this->codec->decodeState($envelope);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $snapshot->componentId === $target && $snapshot->componentName === $componentName ? $snapshot : null;
+    }
+
+    /** The HTML renderer for `$componentName` — from the name-keyed array or the registry — or null when none supports HTML. */
+    private function rendererFor(string $componentName): ?ComponentRendererInterface
+    {
+        $renderer = $this->renderers instanceof ComponentRendererRegistry
+            ? $this->renderers->resolveFor($componentName, RenderTarget::HTML)
+            : ($this->renderers[$componentName] ?? null);
+
+        return $renderer instanceof ComponentRendererInterface && $renderer->supportsTarget(RenderTarget::HTML) ? $renderer : null;
+    }
+
+    /** A fresh token for the request's session and route when the presented one is near expiry; null otherwise. */
+    private function refreshedCsrfToken(LiveHttpRequest $request): ?string
+    {
+        if (!$this->csrf instanceof CsrfTokenLifetimeInterface) {
+            return null;
+        }
+        $ttl = $this->csrf->ttl();
+        if ($ttl <= 0 || $this->csrf->remaining($request->csrfToken) >= $ttl * self::CSRF_REFRESH_FRACTION) {
+            return null;
+        }
+
+        return $this->csrf->issueToken($request->sessionId, $this->route);
     }
 }
