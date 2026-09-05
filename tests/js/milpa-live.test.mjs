@@ -1,0 +1,211 @@
+/**
+ * The client runtime's registry contract (greenhouse decisions/0211), measured by execution: a stub page
+ * loads the shipped files verbatim (no build), a stub Alpine records what it is handed, and each rule of
+ * "one runtime per page" is asserted — the double-load guard, the queue flushed after the built-ins, the
+ * no-override error, the remote runtime's explicit replace path, the fail-loud without the local runtime,
+ * and the CSRF refresh stored back into the boot.
+ *
+ * Run: `node --test 'tests/js/**\/*.test.mjs'` — or `npm test` (Node ≥ 22; node:test is built in, nothing to install).
+ *
+ * (c) Rodrigo Vicente - TeamX Agency — https://teamx.agency · Apache-2.0
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import vm from 'node:vm';
+
+const resources = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../resources');
+const LOCAL = path.join(resources, 'milpa-live.js');
+const REMOTE = path.join(resources, 'milpa-live-remote.js');
+
+// A page: `window` is the context itself, `document` only knows the two things the runtimes ask at load
+// time (listeners and elements by id), `console.warn` is recorded, and Alpine is absent until started.
+function page(elements = {}) {
+  const listeners = {};
+  const warnings = [];
+  const sandbox = {
+    console: { warn: (m) => warnings.push(m), log() {}, error() {} },
+    document: {
+      addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
+      getElementById(id) { return elements[id] || null; },
+      querySelector() { return null; },
+    },
+  };
+  sandbox.window = sandbox;
+  vm.createContext(sandbox);
+  const load = (file) => vm.runInContext(readFileSync(file, 'utf8'), sandbox, { filename: file });
+  // A stub Alpine: it records every `Alpine.data` call in order.
+  const stubAlpine = () => {
+    const calls = [];
+    const stores = {};
+    sandbox.Alpine = {
+      data(name, factory) { calls.push([name, factory]); },
+      store(name, value) { if (value !== undefined) { stores[name] = value; } return stores[name]; },
+      effect() {},
+    };
+    return calls;
+  };
+  // Start it the documented way: the stub appears, then `alpine:init` fires.
+  const startAlpine = () => {
+    const calls = stubAlpine();
+    (listeners['alpine:init'] || []).forEach((fn) => fn());
+    return calls;
+  };
+  // The wrong way round: Alpine is already on the page (and started) before the runtime loads.
+  const presetAlpine = () => stubAlpine();
+  return { sandbox, listeners, warnings, load, startAlpine, presetAlpine };
+}
+
+const throwsMatching = (fn, pattern) => {
+  let thrown = null;
+  try { fn(); } catch (e) { thrown = e; }
+  assert.ok(thrown, 'expected an error');
+  assert.match(String(thrown.message), pattern);
+};
+
+test('the second copy of the runtime is refused with a warning, and the first registry stands', () => {
+  const p = page();
+  p.load(LOCAL);
+  const first = p.sandbox.window.MilpaLive;
+  assert.equal(first.__loaded, true);
+
+  p.load(LOCAL);
+
+  assert.equal(p.warnings.length, 1);
+  assert.match(p.warnings[0], /\[milpa-live\] runtime loaded twice; ignoring the second copy/);
+  assert.equal(p.sandbox.window.MilpaLive, first, 'the same registry object');
+  assert.equal((p.listeners['alpine:init'] || []).length, 1, 'one alpine:init listener, not two');
+});
+
+test('built-ins bind first, queued plugin factories follow in registration order, and after start a factory binds at once', () => {
+  const p = page();
+  p.load(LOCAL);
+  const live = p.sandbox.window.MilpaLive;
+  const a = () => ({ a: true });
+  const b = () => ({ b: true });
+
+  live.register('pluginA', a);
+  live.register('pluginB', b);
+  assert.equal(live.registered('pluginA'), true);
+  assert.equal(live.registered('nope'), false);
+
+  const calls = p.startAlpine();
+  assert.deepEqual(calls.map(([name]) => name), ['milpaField', 'milpaCheckbox', 'milpaDataTable', 'pluginA', 'pluginB']);
+  assert.equal(calls[3][1], a);
+  assert.equal(calls[4][1], b);
+
+  const c = () => ({ c: true });
+  live.register('pluginC', c);
+  assert.equal(calls.length, 6, 'after start, register() hands the factory to Alpine immediately');
+  assert.deepEqual(calls[5], ['pluginC', c]);
+});
+
+test('registering a name that is already bound throws, naming it — built-ins included', () => {
+  const p = page();
+  p.load(LOCAL);
+  const live = p.sandbox.window.MilpaLive;
+
+  throwsMatching(() => live.register('milpaField', () => ({})), /"milpaField" is already registered/);
+  live.register('pluginA', () => ({}));
+  throwsMatching(() => live.register('pluginA', () => ({})), /"pluginA" is already registered/);
+  throwsMatching(() => live.register('', () => ({})), /needs a factory name/);
+  throwsMatching(() => live.register('pluginX', 'not a function'), /needs a factory function/);
+
+  const calls = p.startAlpine();
+  assert.deepEqual(calls.map(([name]) => name), ['milpaField', 'milpaCheckbox', 'milpaDataTable', 'pluginA'], 'nothing was overridden, nothing was double-bound');
+});
+
+test('the remote runtime replaces milpaDataTable through the explicit replace path and registers its other factories', () => {
+  const p = page();
+  p.load(LOCAL);
+  p.load(REMOTE);
+  const live = p.sandbox.window.MilpaLive;
+  assert.equal(live.__loaded, true, 'the remote merged into the local registry instead of replacing it');
+  assert.equal(typeof live.send, 'function');
+  assert.equal(typeof live.register, 'function');
+
+  const calls = p.startAlpine();
+  assert.deepEqual(
+    calls.map(([name]) => name),
+    ['milpaField', 'milpaCheckbox', 'milpaDataTable', 'milpaAutocomplete', 'milpaFieldRemote'],
+    'the replaced name keeps its slot; new names queue after the built-ins',
+  );
+  const tables = calls.filter(([name]) => name === 'milpaDataTable');
+  assert.equal(tables.length, 1, 'bound once — the replacement, not both');
+  const table = tables[0][1]({ componentId: 't' });
+  assert.equal(typeof table.act, 'function', 'the over-the-wire variant (it has act())');
+});
+
+test('the second copy of the remote runtime is refused with a warning; the replacement happened once', () => {
+  const p = page();
+  p.load(LOCAL);
+  p.load(REMOTE);
+  const live = p.sandbox.window.MilpaLive;
+  assert.equal(live.__remoteLoaded, true);
+
+  p.load(REMOTE); // a guest shipping its own copy at another URL — must not throw on milpaAutocomplete
+
+  assert.equal(p.warnings.length, 1);
+  assert.match(p.warnings[0], /\[milpa-live-remote\] runtime loaded twice; ignoring the second copy/);
+  assert.equal(p.sandbox.window.MilpaLive, live, 'the same registry object');
+  const calls = p.startAlpine();
+  assert.deepEqual(
+    calls.map(([name]) => name),
+    ['milpaField', 'milpaCheckbox', 'milpaDataTable', 'milpaAutocomplete', 'milpaFieldRemote'],
+    'each factory bound once',
+  );
+});
+
+test('Alpine already on the page: the runtime warns, binds at once, and registered() never lies', () => {
+  const p = page();
+  const calls = p.presetAlpine();
+
+  p.load(LOCAL);
+  const live = p.sandbox.window.MilpaLive;
+
+  assert.equal(p.warnings.length, 1);
+  assert.match(p.warnings[0], /\[milpa-live\] Alpine loaded before the runtime/);
+  assert.deepEqual(calls.map(([name]) => name), ['milpaField', 'milpaCheckbox', 'milpaDataTable'], 'the built-ins reached Alpine');
+  assert.equal((p.listeners['alpine:init'] || []).length, 0, 'no listener waiting for an alpine:init that will never fire');
+  assert.notEqual(p.sandbox.Alpine.store('milpa'), undefined, 'the signals store was seeded');
+
+  const late = () => ({ late: true });
+  live.register('late', late);
+  assert.equal(live.registered('late'), true);
+  assert.deepEqual(calls[3], ['late', late], 'handed to Alpine at once, not queued');
+});
+
+test('the remote runtime without the local one fails loudly', () => {
+  const p = page();
+  throwsMatching(() => p.load(REMOTE), /the local runtime \(milpa-live\.js\) must load first/);
+  assert.equal(p.sandbox.window.MilpaLive, undefined);
+});
+
+test('a returned csrfToken is stored into the boot, and the request carries the boot session id — never a cookie', async () => {
+  const boot = { textContent: JSON.stringify({ endpoint: '/live', sessionId: 'live-abc', csrfToken: 'old-token' }) };
+  const p = page({ 'milpa-live-boot': boot });
+  p.load(LOCAL);
+  p.load(REMOTE);
+  const live = p.sandbox.window.MilpaLive;
+
+  const sent = [];
+  live.transport = (b, body) => { sent.push(body); return { status: 200, data: { ok: true, csrfToken: 'fresh-token' } }; };
+  const root = { querySelector: () => ({ textContent: '<milpa-state security="signed"/>' }) };
+
+  const result = await live.send(live.bootData(), root, 'c-1', 'go', { x: 1 });
+
+  assert.equal(result.status, 200);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].sessionId, 'live-abc', 'the session id comes from the boot payload');
+  assert.equal(sent[0].csrfToken, 'old-token');
+  assert.equal(sent[0].state, '<milpa-state security="signed"/>');
+  assert.equal(JSON.parse(boot.textContent).csrfToken, 'fresh-token', 'the boot now carries the refreshed token');
+  assert.equal(live.bootData().sessionId, 'live-abc', 'the session id is untouched');
+
+  // A response without a token leaves the boot alone.
+  live.transport = () => ({ status: 200, data: { ok: true } });
+  await live.send(live.bootData(), root, 'c-1', 'go', {});
+  assert.equal(JSON.parse(boot.textContent).csrfToken, 'fresh-token');
+});

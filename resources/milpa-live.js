@@ -19,6 +19,25 @@
  * is inherently a server-search component (it fetches) and therefore belongs to the REMOTE runtime,
  * not here.
  *
+ * One runtime per page (greenhouse decisions/0211): a plugin DECLARES its view — components, their client
+ * behaviour, their CSS — and the host's single runtime reconciles it. This file is that runtime's registry:
+ *   - `MilpaLive.register(name, factory)` binds an Alpine data factory. Before Alpine starts it is QUEUED and
+ *     flushed inside this runtime's own `alpine:init` listener, AFTER the built-in factories (`milpaField`,
+ *     `milpaCheckbox`, `milpaDataTable`); after Alpine has started it is handed to `Alpine.data` at once.
+ *     Registering a name that is already registered THROWS — a plugin never overrides another, and never a
+ *     built-in. The one exception is `register(name, factory, { replace: true })`, reserved for runtime
+ *     modules (milpa-live-remote.js replaces `milpaDataTable` with its over-the-wire variant).
+ *   - `MilpaLive.registered(name)` answers whether a factory is bound.
+ *   - Loading this file twice is refused: the second copy warns and returns, so a guest that ships its own
+ *     copy of the runtime never gets a second registry (and the host emits Alpine once — LiveBoot::html()).
+ *   - Alpine already on the page when this file runs (someone emitted alpine.min.js first) is detected: the
+ *     runtime warns and binds at once instead of queueing for an `alpine:init` that will never fire — so
+ *     `registered()` never says yes for a factory Alpine never received. The `x-data` Alpine already walked
+ *     has failed by then; the fix is the emit order, not the runtime.
+ * Order, in full: styles → boot → milpa-live.js (built-ins bound) → milpa-live-remote.js (registers through
+ * register()) → plugin modules (register()) → alpine.min.js (starts: store, computed, built-ins, then the
+ * queue in registration order).
+ *
  * No-build (ADR#10): hand-written, readable, served as-is. Alpine is vendored separately
  * (vendor/alpine.min.js) and loaded AFTER this file; both `defer`, so they run in document order.
  *
@@ -27,7 +46,34 @@
 (function () {
   'use strict';
 
+  // DOUBLE-LOAD GUARD: one runtime per page. A second copy (a guest shipping its own) is ignored, loudly.
+  if (window.MilpaLive && window.MilpaLive.__loaded) {
+    console.warn('[milpa-live] runtime loaded twice; ignoring the second copy');
+    return;
+  }
+
   var root = window.MilpaLive || {};
+
+  // The factory registry (greenhouse decisions/0211). `factories` is the current binding per name; `queue`
+  // is the order Alpine receives them in at `alpine:init` (built-ins first, then plugins as they registered);
+  // `started` flips inside this runtime's own `alpine:init` listener, after which register() binds at once.
+  var factories = {};
+  var queue = [];
+  var started = false;
+  function ownsKey(object, key) { return Object.prototype.hasOwnProperty.call(object, key); }
+
+  root.register = function (name, factory, options) {
+    if (typeof name !== 'string' || name === '') { throw new Error('[milpa-live] register() needs a factory name'); }
+    if (typeof factory !== 'function') { throw new Error('[milpa-live] register("' + name + '") needs a factory function'); }
+    var replace = Boolean(options && options.replace === true);
+    if (ownsKey(factories, name) && !replace) {
+      throw new Error('[milpa-live] factory "' + name + '" is already registered; a plugin never overrides another (greenhouse decisions/0211)');
+    }
+    if (!ownsKey(factories, name) && !started) { queue.push(name); } // the queue only exists until alpine:init flushes it
+    factories[name] = factory;
+    if (started) { window.Alpine.data(name, factory); }
+  };
+  root.registered = function (name) { return ownsKey(factories, name); };
 
   // Client-local UX memory (no network): localStorage by default, chrome.storage.sync when a
   // component asks for it (a browser-extension surface). A broken store is an empty store.
@@ -194,8 +240,9 @@
   }
 
   // milpaDataTable: selection, sort and paging kept LOCALLY (remembered in storage, no network).
-  // The REMOTE runtime (milpa-live-remote.js) overrides this same name with the over-the-wire
-  // variant when a page loads it; on a local-only page, this is the whole behaviour.
+  // The REMOTE runtime (milpa-live-remote.js) replaces this same name with the over-the-wire variant
+  // through `register(name, factory, { replace: true })` when a page loads it; on a local-only page,
+  // this is the whole behaviour.
   function milpaDataTable(options) {
     var opts = options || {};
     var storage = root.pickStorage(opts.storage || 'local');
@@ -257,8 +304,15 @@
     };
   }
 
-  // Register the factories BEFORE Alpine boots (this file loads before alpine.min.js).
-  document.addEventListener('alpine:init', function () {
+  // The built-ins are bound through the same register() a plugin uses — so they are first in the queue,
+  // and a plugin that picks one of their names fails loudly instead of silently shadowing it.
+  root.register('milpaField', milpaField);
+  root.register('milpaCheckbox', milpaCheckbox);
+  root.register('milpaDataTable', milpaDataTable);
+
+  // Hand the factories to Alpine when it boots (this file loads before alpine.min.js): store, computed
+  // signals, then every registered factory in registration order — built-ins first, plugins after.
+  function onAlpineInit() {
     // The shared signals store — reactive, seeded from the page. Every `$store.milpa['<key>']` binding
     // tracks it, so setting one signal projects to all of them.
     if (!window.Alpine.store('milpa')) { window.Alpine.store('milpa', signalSeed); }
@@ -269,8 +323,21 @@
         return template.replace(/\{([^}]+)\}/g, function (_, k) { var v = store[k.trim()]; return v == null ? '' : v; });
       });
     });
-    window.Alpine.data('milpaField', milpaField);
-    window.Alpine.data('milpaCheckbox', milpaCheckbox);
-    window.Alpine.data('milpaDataTable', milpaDataTable);
-  });
+    queue.forEach(function (name) { window.Alpine.data(name, factories[name]); });
+    queue = [];
+    started = true;
+  }
+
+  if (window.Alpine && typeof window.Alpine.data === 'function') {
+    // Alpine got here first (a host or a guest emitted alpine.min.js before this runtime): its `alpine:init`
+    // has fired, or will without us, so a queued registration would never flush while registered() said yes.
+    // Bind now, loudly. The factories reach Alpine; any `x-data` it already walked has failed, and the fix is
+    // the emit order — LiveBoot::html() puts Alpine last (greenhouse decisions/0211).
+    console.warn('[milpa-live] Alpine loaded before the runtime; binding factories at once — emit alpine.min.js last (LiveBoot::html())');
+    onAlpineInit();
+  } else {
+    document.addEventListener('alpine:init', onAlpineInit);
+  }
+
+  root.__loaded = true;
 }());

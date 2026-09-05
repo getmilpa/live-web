@@ -59,4 +59,33 @@ final class HmacCsrfGuardTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         new HmacCsrfGuard('');
     }
+
+    /** greenhouse decisions/0211: the guard says how long a token has left, so the endpoint can renew it before it dies. */
+    public function testRemainingCountsDownFromTheTtlAndBottomsOutAtZero(): void
+    {
+        $now = 1_000_000;
+        $csrf = new HmacCsrfGuard('lab-csrf-secret', ttlSeconds: 100, clock: static function () use (&$now): int {
+            return $now;
+        });
+        $token = $csrf->issueToken('session-1', '/live');
+
+        self::assertSame(100, $csrf->ttl());
+        self::assertSame(100, $csrf->remaining($token));
+
+        $now += 95;
+        self::assertSame(5, $csrf->remaining($token));
+        self::assertTrue($csrf->verifyToken($token, 'session-1', '/live'), 'still valid');
+
+        $now += 200;
+        self::assertSame(0, $csrf->remaining($token), 'never negative');
+        self::assertFalse($csrf->verifyToken($token, 'session-1', '/live'), 'expired');
+    }
+
+    public function testRemainingOfGarbageIsZero(): void
+    {
+        $csrf = new HmacCsrfGuard('lab-csrf-secret');
+
+        self::assertSame(0, $csrf->remaining('not-a-real-token'));
+        self::assertSame(0, $csrf->remaining(''));
+    }
 }

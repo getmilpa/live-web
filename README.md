@@ -154,23 +154,129 @@ None of this is optional wiring you have to remember: `LiveEndpoint::handle()` r
 signature/replay → authorization, in that order, and turns every failure into the matching HTTP
 status instead of throwing.
 
+**One signing key per page.** `HmacStateSigner` and `HmacCsrfGuard` take the house's `live.secret` —
+the host configures it, and every endpoint a page talks to verifies with that same key. A guest plugin
+never derives its own (no per-directory fallback): an envelope signed under another key is, to the
+host's endpoint, a tampered one. The session id is issued with the boot (`LiveBoot::issue()`), travels
+in the boot payload, and is echoed by the runtime in every request body; the host contract is that its
+adapter fills `LiveHttpRequest::$sessionId` from that body's `sessionId` — never from a cookie another
+page set. `LiveEndpoint` checks the token against whatever the adapter put there; it cannot see where
+it came from, so the contract is the adapter's to keep (see the residue below for the host that does
+not yet). When the guard implements `CsrfTokenLifetimeInterface`
+(`HmacCsrfGuard` does: `remaining($token)`, `ttl()`), a token presented with less than a tenth of its
+TTL left comes back refreshed as `csrfToken` in the OK response, and the remote runtime stores it into
+the boot for the next action.
+
 **The `@milpa/design` topology caveat.** The HTML renderers' CSS comes from `Milpa\Live\Support\MilpaDesign`,
 which resolves the `@milpa/design` npm package at `node_modules/@milpa/design` under your project
 root. If your layout differs (a monorepo, a lab checkout without `npm install`), set
 `MILPA_DESIGN_PATH` to the design package's directory — it takes priority over the npm-relative
 lookup and is checked first by every method on `MilpaDesign`.
 
+## Declared views — one runtime per page
+
+A plugin **declares** its view and the host's single runtime **reconciles** it: one Alpine, one
+`milpa-live`, one boot, one endpoint, one signing key per page (greenhouse `decisions/0211`; the
+render-agnostic half — `ClientAssets`, `DeclaresClientAssets`, `CompositeComponentRegistry` — lives in
+`milpa/live`).
+
+**What a plugin declares.** Its components (a `ComponentRegistryInterface` layer), an HTML renderer per
+component that implements `DeclaresClientAssets` — the `.js` module and the `.css` it serves from its
+own routes — and a client module that binds the component's Alpine factory:
+
+```js
+// /plugins/billing/invoice-list.js — served by the plugin, declared by its renderer
+MilpaLive.register('billingInvoiceList', function (config) { return { /* … */ }; });
+```
+
+**What the host emits.** It composes the registries, compiles the page, and hands `LiveBoot::html()`
+what the compile declared — **`LiveBoot` is the ONE emitter; a host never hand-writes runtime
+`<script>` tags**:
+
+```php
+use Milpa\Live\Http\LiveBoot;
+use Milpa\Live\Http\LiveEndpoint;
+use Milpa\Live\Rendering\ComponentRendererRegistry;
+use Milpa\Live\Rendering\XhtmlComponentCompiler;
+use Milpa\Live\Runtime\CompositeComponentRegistry;
+
+$components = new CompositeComponentRegistry(['host' => $hostComponents, 'billing' => $billingComponents], writable: 'host');
+$renderers = new ComponentRendererRegistry();
+$renderers->registerFor('invoice-list', $billingHtmlRenderer); // implements DeclaresClientAssets
+
+$compiled = (new XhtmlComponentCompiler($components, $renderers))->compileFragment($markup, $context);
+$boot = LiveBoot::issue($csrf, '/live');
+echo $compiled->output;
+echo $boot->html(null, $compiled->clientAssets()); // styles → boot → milpa-live.js → milpa-live-remote.js → plugin modules → alpine.min.js
+
+$endpoint = new LiveEndpoint($components, $codec, $authorizer, $csrf, '/live', renderers: $renderers);
+```
+
+`html()` emits every declared stylesheet as `<link rel="stylesheet">` before any script, then the boot
+tag, the local runtime, the remote runtime, every declared plugin script in declared order, and Alpine
+last — each `defer`, each URL once. A plugin declaring one of the runtime files is skipped: the host
+emits the runtime. `LiveEndpoint` takes the same composite registry (it only needs `has`/`get`) and
+the same `ComponentRendererRegistry` in place of the name-keyed `renderers` array, so one endpoint
+serves every plugin's components and a `RenderEffect` from a host component re-paints a guest's. The
+registry answers per name (`registerFor()`), exactly as the array did: a target-wide `register()`ed
+renderer is not consulted for a name, because every shipped HTML renderer is single-family and throws
+for the rest — a host with a general renderer registers it for each name it serves.
+
+**The rules the runtime enforces.**
+
+- **No override.** `MilpaLive.register(name, factory)` throws when `name` is already bound — a
+  plugin never shadows another, nor a built-in (`milpaField`, `milpaCheckbox`, `milpaDataTable`).
+  Before Alpine starts a registration is queued and flushed inside the runtime's own `alpine:init`,
+  after the built-ins, in registration order; after Alpine has started it binds at once.
+  `MilpaLive.registered(name)` answers whether a name is bound.
+- **Double load.** A second copy of `milpa-live.js` warns (`runtime loaded twice; ignoring the
+  second copy`) and returns; the first registry stands. A second copy of `milpa-live-remote.js` is
+  refused the same way (it would replace `milpaDataTable` again and then throw half-applied).
+  `milpa-live-remote.js` throws when the local runtime has not loaded first.
+- **Alpine first is detected.** If `alpine.min.js` ran before `milpa-live.js`, the runtime warns
+  (`Alpine loaded before the runtime`) and binds its factories at once instead of queueing for an
+  `alpine:init` that will never fire — `registered()` never says yes for a factory Alpine never got.
+  The `x-data` Alpine already walked has failed by then; the fix is the emit order, not the runtime.
+- **Replace is reserved.** `register(name, factory, { replace: true })` exists for runtime modules
+  only: the remote runtime replaces `milpaDataTable` with its over-the-wire variant through it. A
+  plugin module never passes it.
+- **Conflicts fail fast.** `CompositeComponentRegistry` throws `ComponentNameConflictException` at
+  construction when two layers bind one name to different definitions, naming the component and both
+  layers.
+- **Current state wins over a fresh mount.** A `RenderEffect` may carry `state` — the target's
+  current signed envelope — and the endpoint re-renders the target from it instead of mounting it
+  fresh from `props`; a tampered, replayed, or foreign envelope is ignored and the fresh mount stands.
+
+**Residue.** The client half of that last rule — the remote runtime collecting the target's envelope
+from the page and sending it back so the handler can put it in the effect — is not shipped in this
+slice: the endpoint accepts `state`, a handler that has it (from its payload, for instance) may use it.
+Two consequences of the server half belong with that client half: whether or not the target renders,
+the effect goes back without its `state` (the envelope is the client's own and never travels back
+raw), and decoding it spends the target's nonce — if the client then fails to swap the target, the
+page's copy is a replayed envelope (409 on its next action). Two hosts also predate the rules above
+and are the migration slice: `milpa/desktop-app`'s `LiveController` fills the session id from a
+cookie (`milpa_live_sid`) instead of the request body (app-runtime's reads the body), and both
+`milpa/admin`'s `AdminPage` (local runtime + Alpine, no boot, no remote) and `milpa/desktop-app`'s
+`ShellController` (all three, no `defer`) hand-write runtime `<script>` tags instead of calling
+`LiveBoot::html()`.
+
+The client contract is measured by execution: `npm test` (or
+`node --test 'tests/js/**/*.test.mjs'`, Node ≥ 22, nothing to install) loads the shipped files into a
+stub page and asserts the guards (both runtimes), the Alpine-first path, the queue order, the
+no-override error, the replace path and the CSRF refresh.
+
 ## What's inside
 
 | Namespace | What it provides |
 |-----------|------------------|
-| `Milpa\Live\Http` | `LiveEndpoint` — the hardened HTTP live-loop entrypoint |
+| `Milpa\Live\Http` | `LiveEndpoint` — the hardened HTTP live-loop entrypoint; `LiveBoot` — the one emitter of the boot, the runtime and the declared assets |
 | `Milpa\Live\Security` | `HmacStateSigner`, `HmacCsrfGuard`, `FileNonceStore`, `SignedXhtmlStateTransferCodec`, `ContractInteractionAuthorizer`, `AllowListCorsPolicy`, `StaticBearerTokenVerifier` |
 | `Milpa\Live\Transport` | `XhtmlStateTransferCodec` — the unsigned inner transport codec |
 | `Milpa\Live\Rendering` | `AutocompleteHtmlRenderer`, `FormPrimitiveHtmlRenderer`, `DashboardHtmlRenderer`, `LatteTemplateRenderer`, `XhtmlComponentCompiler` |
+| `Milpa\Live\Effects` | `RenderEffect`, `DispatchEffect`, `StateEffect` — the declared cross-component effects |
 | `Milpa\Live\Adapters\Alpine` | `AlpineRuntimeAdapter` — the shipped `ClientRuntimeAdapterInterface` |
-| `Milpa\Live\Support` | `Html` (escaping helpers), `MilpaDesign` (design-system path resolution) |
-| `Milpa\Live\Contracts\*` | `Security`, `Rendering`, and `Transport` seams — `CsrfGuardInterface`, `StateSignerInterface`, `NonceStoreInterface`, `StateTransferCodecInterface`, `ComponentRendererInterface`, `MarkupCompilerInterface`, `TemplateRendererInterface`, `CorsPolicyInterface`, `InteractionAuthorizerInterface`, `TokenVerifierInterface` |
+| `Milpa\Live\Support` | `Html` (escaping helpers), `MilpaDesign` (design-system path resolution), `ClientRuntime` (the shipped client files) |
+| `Milpa\Live\Contracts\*` | `Security`, `Rendering`, and `Transport` seams — `CsrfGuardInterface`, `CsrfTokenLifetimeInterface`, `StateSignerInterface`, `NonceStoreInterface`, `StateTransferCodecInterface`, `ComponentRendererInterface`, `MarkupCompilerInterface`, `TemplateRendererInterface`, `CorsPolicyInterface`, `InteractionAuthorizerInterface`, `TokenVerifierInterface` |
 | `Milpa\Live\ValueObjects` | `StateSignature`, `AuthorizationResult`, `CorsDecision` |
 
 Every public symbol carries a DocBlock.
@@ -178,8 +284,8 @@ Every public symbol carries a DocBlock.
 ## Requirements
 
 - PHP **≥ 8.3** with the **`ext-dom`** extension
-- [`milpa/core`](https://packagist.org/packages/milpa/core) **^0.6**
-- [`milpa/live`](https://packagist.org/packages/milpa/live) **^0.1**
+- [`milpa/core`](https://packagist.org/packages/milpa/core) **≥ 0.9, < 1.0** (through `milpa/live`)
+- [`milpa/live`](https://packagist.org/packages/milpa/live) **^0.18**
 
 ## Documentation
 

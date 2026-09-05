@@ -26,9 +26,20 @@ use Milpa\Live\ValueObjects\StateSignature;
  * match every `$requiredClaims` entry. This is the primitive
  * {@see SignedXhtmlStateTransferCodec} wraps to make the client-echoed
  * `<milpa-state>` envelope tamper-evident.
+ *
+ * One key per page (greenhouse decisions/0211): every envelope on a page —
+ * the host's components and every guest plugin's — is signed and verified
+ * with the SAME `$secret`, the house's `live.secret`, configured by the host.
+ * A guest never derives its own (no per-directory fallback): an envelope
+ * signed under another key is, to the host's endpoint, a tampered one.
  */
 final readonly class HmacStateSigner implements StateSignerInterface
 {
+    /**
+     * @param string $secret           the house's `live.secret` — one per page, shared by every signer and CSRF guard on it
+     * @param int    $ttlSeconds       how long a signature stays valid
+     * @param int    $clockSkewSeconds tolerance either side of `issuedAt`/`expiresAt`
+     */
     public function __construct(
         private string $secret,
         private int $ttlSeconds = 300,
