@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/getmilpa/live-web/compare/v0.14.0...v0.14.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* admit every minor of milpa/live, not just 0.18 ([#36](https://github.com/getmilpa/live-web/issues/36)) ([c257970](https://github.com/getmilpa/live-web/commit/c257970517c08b82ba6ae5b607e00bfcfce0cf73))
+
 ## [0.14.0](https://github.com/getmilpa/live-web/compare/v0.13.0...v0.14.0) (2026-09-05)
 
 
