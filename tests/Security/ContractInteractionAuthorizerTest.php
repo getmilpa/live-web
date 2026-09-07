@@ -22,6 +22,7 @@ use Milpa\Live\Security\ContractInteractionAuthorizer;
 use Milpa\Live\ValueObjects\ComponentContext;
 use Milpa\Live\ValueObjects\InteractionRequest;
 use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
+use Milpa\Live\ValueObjects\ActionContract;
 use Milpa\Live\ValueObjects\ComponentContract;
 use Milpa\Live\ValueObjects\InteractionResult;
 use Milpa\Live\ValueObjects\StateSnapshot;
@@ -132,6 +133,51 @@ final class ContractInteractionAuthorizerTest extends TestCase
 
         self::assertFalse($result->allowed);
         self::assertArrayHasKey('scope', $result->errors);
+    }
+
+    public function testTheRicherActionDeclarationScopesByPayloadFieldToo(): void
+    {
+        // The same rule, written the new way (greenhouse decisions/0214): an ActionContract carries the
+        // same `scopeBy`, and this authorizer must not be able to tell the two forms apart. If it could,
+        // every component that declared its intent would silently lose its per-event authorization.
+        $component = new class () implements ComponentDefinitionInterface {
+            public static function contract(): ComponentContract
+            {
+                return new ComponentContract(
+                    name: 'rich',
+                    contractVersion: '1',
+                    actions: ['fire' => new ActionContract(summary: 'Fire one transition.', scopeBy: 'event')],
+                );
+            }
+
+            public function mount(array $props, ComponentContext $context): StateSnapshot
+            {
+                return new StateSnapshot('rich-1', 'rich', '1', [], []);
+            }
+
+            public function handle(InteractionRequest $request): InteractionResult
+            {
+                return new InteractionResult($request->state);
+            }
+        };
+        $components = new InMemoryComponentRegistry();
+        $components->register('rich', $component);
+        $authorizer = new ContractInteractionAuthorizer($components);
+        $state = $component->mount([], new ComponentContext('rich-1'));
+
+        $fire = static fn (string $event): InteractionRequest => new InteractionRequest(
+            componentId: 'rich-1',
+            componentName: 'rich',
+            action: 'fire',
+            state: $state,
+            payload: ['event' => $event],
+        );
+
+        $canUnlock = new SecurityPrincipal('user:1', ['milpa:component:rich:unlock']);
+        self::assertTrue($authorizer->authorize($fire('unlock'), $canUnlock)->allowed);
+        $denied = $authorizer->authorize($fire('lock'), $canUnlock);
+        self::assertFalse($denied->allowed);
+        self::assertSame('Missing scope: milpa:component:rich:lock', $denied->errors['scope'] ?? null);
     }
 
     public function testAnActionMarkedScopeByIsAuthorizedPerPayloadFieldNotPerActionName(): void

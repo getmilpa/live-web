@@ -72,13 +72,17 @@ final readonly class ContractInteractionAuthorizer implements InteractionAuthori
         }
 
         // A component may declare that an action is scoped by a PAYLOAD FIELD rather than by the action
-        // name (`actions[<action>]['scopeBy'] => '<field>'`): then the derived scope suffix is the value of
-        // that field, so one generic action (e.g. a StateMachine's `fire`) carries per-EVENT authorization
-        // without a dynamic contract (greenhouse decisions/0096). The contract, not the caller, chooses this.
-        $actionSpec = $contract->actions[$request->action];
+        // name: then the derived scope suffix is the value of that field, so one generic action (e.g. a
+        // StateMachine's `fire`) carries per-EVENT authorization without a dynamic contract (greenhouse
+        // decisions/0096). The contract, not the caller, chooses this.
+        //
+        // Read through `ComponentContract::action()` so the bare-array form and the richer
+        // `ActionContract` answer the same question here — this is the one place that would otherwise have
+        // to know there are two shapes (greenhouse decisions/0214).
+        $action = $contract->action($request->action);
         $scopeKey = $request->action;
-        if (is_array($actionSpec) && is_string($actionSpec['scopeBy'] ?? null) && $actionSpec['scopeBy'] !== '') {
-            $field = $request->payload[$actionSpec['scopeBy']] ?? null;
+        if ($action !== null && $action->scopeBy !== null) {
+            $field = $request->payload[$action->scopeBy] ?? null;
             if (is_string($field) && $field !== '') {
                 $scopeKey = $field;
             }
