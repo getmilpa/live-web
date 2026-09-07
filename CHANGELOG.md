@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/getmilpa/live-web/compare/v0.14.1...v0.15.0) (2026-09-07)
+
+
+### Features
+
+* the authorizer reads either action shape, so declaring intent costs no authorization ([#38](https://github.com/getmilpa/live-web/issues/38)) ([726d34f](https://github.com/getmilpa/live-web/commit/726d34feab08668c284953160740aba1556a3d9b))
+
 ## [0.14.1](https://github.com/getmilpa/live-web/compare/v0.14.0...v0.14.1) (2026-09-06)
 
 
