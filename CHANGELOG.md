@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/getmilpa/live-web/compare/v0.15.0...v0.16.0) (2026-09-08)
+
+
+### Features
+
+* the dispatcher enters this package already knowing every event it will see ([#40](https://github.com/getmilpa/live-web/issues/40)) ([c0d17f3](https://github.com/getmilpa/live-web/commit/c0d17f3c708cfbdaf7119f07c25c771b6044db74))
+
 ## [0.15.0](https://github.com/getmilpa/live-web/compare/v0.14.1...v0.15.0) (2026-09-07)
 
 
