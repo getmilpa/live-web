@@ -51,6 +51,9 @@ final readonly class StateMachineHtmlRenderer implements ComponentRendererInterf
         private ?MilpaEventDispatcherInterface $dispatcher = null,
     ) {
         $this->templates = $templates ?? new LatteTemplateRenderer();
+        // The dispatcher enters this package here; declaring milpa/live's holder makes
+        // the catalogue readable before the first render (greenhouse decisions/0228).
+        LiveEventEmitter::declareTo($dispatcher);
     }
 
     /** This renderer targets HTML only. */

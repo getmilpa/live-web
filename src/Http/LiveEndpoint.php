@@ -85,6 +85,11 @@ final readonly class LiveEndpoint
         private array $renderProps = [],
         private ?MilpaEventDispatcherInterface $dispatcher = null,
     ) {
+        // The dispatcher enters this package here, so the catalogue can be read at
+        // boot instead of only after the first request (greenhouse decisions/0228).
+        // The names belong to milpa/live's emitter — this package holds no dispatch()
+        // site of its own — so it declares that holder rather than retyping a name.
+        LiveEventEmitter::declareTo($dispatcher);
     }
 
     /**

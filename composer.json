@@ -22,8 +22,8 @@
   "require": {
     "php": ">=8.3",
     "ext-dom": "*",
-    "milpa/core": ">=0.6.2 <1.0",
-    "milpa/live": ">=0.18 <1.0",
+    "milpa/core": ">=0.11 <1.0",
+    "milpa/live": ">=0.22 <1.0",
     "composer-runtime-api": "^2.2"
   },
   "require-dev": {

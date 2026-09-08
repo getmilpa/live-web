@@ -281,11 +281,23 @@ no-override error, the replace path and the CSRF refresh.
 
 Every public symbol carries a DocBlock.
 
+### Declared events
+
+This package holds **no `dispatch()` site of its own**: every event a live request emits
+(`component.mounting`/`mounted`, `component.handling`/`handled`, `component.rendering`/`rendered`,
+`live.request`, `live.responded`) is dispatched by `milpa/live`'s `LiveEventEmitter`, which owns
+their names and their declarations. What this package does is declare that catalogue **where the
+dispatcher enters it** — the constructors of `LiveEndpoint` and of the four HTML renderers each
+call `LiveEventEmitter::declareTo($dispatcher)`, so a dispatcher implementing `DeclaredEvents`
+(`milpa/core` ≥ 0.11) can be asked «what events exist?» at boot, before the first request. A
+dispatcher without the contract is asked nothing, and no dispatcher at all changes nothing
+(greenhouse decisions/0228).
+
 ## Requirements
 
 - PHP **≥ 8.3** with the **`ext-dom`** extension
-- [`milpa/core`](https://packagist.org/packages/milpa/core) **≥ 0.9, < 1.0** (through `milpa/live`)
-- [`milpa/live`](https://packagist.org/packages/milpa/live) **^0.18**
+- [`milpa/core`](https://packagist.org/packages/milpa/core) **≥ 0.11, < 1.0**
+- [`milpa/live`](https://packagist.org/packages/milpa/live) **≥ 0.22, < 1.0**
 
 ## Documentation
 
