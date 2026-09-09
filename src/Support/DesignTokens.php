@@ -47,30 +47,68 @@ final class DesignTokens
 {
     public const TOKENS = 'milpa-tokens.css';
 
-    /** The absolute path of the shipped stylesheet, or null when `$name` is not it. */
+    public const FONTS = 'milpa-fonts.css';
+
+    /**
+     * The faces, shipped rather than fetched — Rod's decision (greenhouse decisions/0243).
+     *
+     * The tokens named `Space Grotesk` and `Space Mono` and NOTHING loaded them: zero `@font-face`
+     * in the tokens, in the panel's bundle or in the design kit, so every Milpa surface rendered in
+     * whatever the viewer's machine happened to have. A self-hosted panel should not have to reach
+     * the network to look like itself, and an offline deployment cannot.
+     *
+     * Space Grotesk is VARIABLE (300–700): one file covers regular, medium, semibold and bold.
+     * Space Mono is static, and only the two weights the tokens name ship.
+     *
+     * OFL-1.1, with the licence beside the files — the same way this package already vendors Alpine.
+     */
+    private const FACES = [
+        'space-grotesk-latin.woff2',
+        'space-grotesk-latin-ext.woff2',
+        'space-mono-400-latin.woff2',
+        'space-mono-400-latin-ext.woff2',
+        'space-mono-700-latin.woff2',
+        'space-mono-700-latin-ext.woff2',
+    ];
+
+    /**
+     * The absolute path of a shipped file, or null when `$name` is not one of them.
+     *
+     * A name this package does not own answers `null` and never a path: a host serves whatever this
+     * returns, so anything looser would be a file read with extra steps.
+     */
     public static function path(string $name): ?string
     {
-        if ($name !== self::TOKENS) {
-            return null;
-        }
-        $file = \dirname(__DIR__, 2) . '/resources/design/' . self::TOKENS;
+        $dir = \dirname(__DIR__, 2) . '/resources/design/';
+        $file = match (true) {
+            $name === self::TOKENS, $name === self::FONTS => $dir . $name,
+            \in_array($name, self::FACES, true) => $dir . 'fonts/' . $name,
+            default => null,
+        };
 
-        return is_file($file) ? $file : null;
+        return $file !== null && is_file($file) ? $file : null;
     }
 
     /**
-     * The URL a host serves it at by default.
+     * The URLs a host serves them at by default — the faces keep the `fonts/` segment the stylesheet
+     * asks for, because `milpa-fonts.css` names them relatively and a host that flattens the path
+     * serves a stylesheet whose every `src` is a 404.
      *
      * @return array<string, string> name => URL
      */
     public static function defaultUrls(): array
     {
-        return [self::TOKENS => '/' . self::TOKENS];
+        $urls = [self::TOKENS => '/' . self::TOKENS, self::FONTS => '/' . self::FONTS];
+        foreach (self::FACES as $face) {
+            $urls[$face] = '/fonts/' . $face;
+        }
+
+        return $urls;
     }
 
-    /** The MIME type a host should serve it with. */
-    public static function contentType(): string
+    /** The MIME type a host should serve `$name` with. */
+    public static function contentType(string $name = self::TOKENS): string
     {
-        return 'text/css; charset=utf-8';
+        return str_ends_with($name, '.woff2') ? 'font/woff2' : 'text/css; charset=utf-8';
     }
 }
