@@ -64,10 +64,70 @@ final class DesignTokensTravelWithoutBeingCopiedTest extends TestCase
         self::assertNull(DesignTokens::path(''));
     }
 
-    /** A stylesheet is served as one. */
-    public function testItIsServedAsAStylesheet(): void
+    /** A stylesheet is served as one, and a face as a face. */
+    public function testEachFileIsServedAsWhatItIs(): void
     {
         self::assertSame('text/css; charset=utf-8', DesignTokens::contentType());
-        self::assertSame(['milpa-tokens.css' => '/milpa-tokens.css'], DesignTokens::defaultUrls());
+        self::assertSame('text/css; charset=utf-8', DesignTokens::contentType(DesignTokens::FONTS));
+        self::assertSame('font/woff2', DesignTokens::contentType('space-grotesk-latin.woff2'));
+    }
+
+    /**
+     * THE FACES SHIP, because naming a family nothing loads is what this fixes.
+     *
+     * The tokens said `Space Grotesk` and `Space Mono` while zero `@font-face` existed anywhere in
+     * the family, so every surface rendered in whatever the viewer's machine had. Shipped rather
+     * than fetched: a self-hosted panel should not reach the network to look like itself.
+     */
+    public function testTheFacesShipAndAreRealWoff2(): void
+    {
+        $faces = array_filter(array_keys(DesignTokens::defaultUrls()), static fn (string $n): bool => str_ends_with($n, '.woff2'));
+
+        self::assertCount(6, $faces, 'Space Grotesk variable + Space Mono 400/700, latin and latin-ext');
+        foreach ($faces as $face) {
+            $path = DesignTokens::path($face);
+            self::assertNotNull($path, $face . ' is named and not shipped');
+            self::assertSame('wOF2', (string) file_get_contents($path, false, null, 0, 4), $face . ' is not a woff2');
+        }
+    }
+
+    /**
+     * THE STYLESHEET AND THE FILES AGREE — every `src` it names is a file that ships.
+     *
+     * A `@font-face` pointing at a missing file fails silently: the browser falls back and the page
+     * looks styled while it is not, which is the exact bug this slice exists to end.
+     */
+    public function testEverySrcInTheStylesheetIsAFileThatShips(): void
+    {
+        $css = (string) file_get_contents((string) DesignTokens::path(DesignTokens::FONTS));
+        preg_match_all("#url\('fonts/([^']+)'\)#", $css, $m);
+
+        self::assertNotSame([], $m[1], 'a font stylesheet that names no file is not one');
+        foreach ($m[1] as $file) {
+            self::assertNotNull(DesignTokens::path($file), $file . ' is named by the stylesheet and does not ship');
+        }
+        // Counted as RULES and not as mentions: the file's own header explains why zero `@font-face`
+        // existed before, so counting the word finds seven and the test lies about the sixth face.
+        self::assertSame(6, preg_match_all('/@font-face\s*\{/', $css), 'six faces, counted as rules');
+        self::assertCount(6, $m[1]);
+    }
+
+    /** The licence travels with what it licenses. */
+    public function testTheLicenceShipsBesideTheFaces(): void
+    {
+        $dir = \dirname((string) DesignTokens::path('space-grotesk-latin.woff2'));
+
+        self::assertFileExists($dir . '/OFL.txt');
+        self::assertStringContainsString('SIL Open Font License', (string) file_get_contents($dir . '/OFL.txt'));
+    }
+
+    /** The default URLs keep the `fonts/` segment the stylesheet asks for. */
+    public function testTheUrlsKeepThePathTheStylesheetNames(): void
+    {
+        $urls = DesignTokens::defaultUrls();
+
+        self::assertSame('/milpa-tokens.css', $urls[DesignTokens::TOKENS]);
+        self::assertSame('/milpa-fonts.css', $urls[DesignTokens::FONTS]);
+        self::assertSame('/fonts/space-grotesk-latin.woff2', $urls['space-grotesk-latin.woff2'], 'flattening this serves a stylesheet whose every src is a 404');
     }
 }

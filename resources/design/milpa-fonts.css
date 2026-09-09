@@ -1,0 +1,71 @@
+/* Milpa — las caras de la casa, EMBARCADAS (greenhouse decisions/0243).
+   Los tokens nombraban 'Space Grotesk' y 'Space Mono' y NADA las cargaba: cero @font-face en
+   los tokens, en el bundle del panel y en el kit de diseño. Toda superficie de Milpa renderizaba
+   con lo que tuviera la máquina de quien mira — medido en la ceremonia de passkey, que salía
+   monoespaciada.
+
+   Embarcadas y no traídas de un CDN, por decisión de Rod: un panel self-hosted no debería
+   necesitar salir a la red para verse como es, y un despliegue sin internet tampoco.
+
+   Space Grotesk es VARIABLE (300–700): un archivo cubre regular, medium, semibold y bold.
+   Space Mono es estática y sólo se embarcan los dos pesos que los tokens nombran.
+
+   Los `unicode-range` son los que publica el origen, copiados y no inventados: un rango escrito
+   a ojo hace que el navegador descargue el subset equivocado o ninguno.
+
+   OFL-1.1 — ver fonts/OFL.txt. */
+
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('fonts/space-grotesk-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('fonts/space-grotesk-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/space-mono-400-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/space-mono-400-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/space-mono-700-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/space-mono-700-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
