@@ -14,14 +14,7 @@ declare(strict_types=1);
 
 namespace Milpa\Live\Tests\Assets;
 
-use DOMDocument;
-use DOMXPath;
 use Milpa\Live\Adapters\Alpine\AlpineRuntimeAdapter;
-use Milpa\Live\Components\Form\InputComponent;
-use Milpa\Live\Rendering\FormPrimitiveHtmlRenderer;
-use Milpa\Live\Transport\XhtmlStateTransferCodec;
-use Milpa\Live\ValueObjects\ComponentContext;
-use Milpa\Live\ValueObjects\RenderRequest;
 use Milpa\Live\Assets\ComponentAssetOrchestrator;
 use Milpa\Live\ValueObjects\ComponentContract;
 use Milpa\Live\ValueObjects\ComponentPresentation;
@@ -76,12 +69,14 @@ final class ComponentAssetOrchestratorTest extends TestCase
     }
 
     /**
-     * F1 (the coupling that makes it true) — the scope selector is the marker the DOM actually gets.
+     * F1 (the coupling that makes it true) — the scope is built from the attribute the DOM gets.
      *
-     * Asked of the adapter rather than of my reading of it: a scope selector that drifted from the
-     * rendered root would produce CSS that is present, correct-looking, and matches nothing.
+     * Asked of the adapter and of the emitted stylesheet rather than of an internal helper: a scope
+     * that drifted from the rendered root would produce CSS that is present, correct-looking, and
+     * matches nothing. That the selector then SELECTS is proved against a real renderer in
+     * {@see \Milpa\Live\Tests\Components\BrandMarkComponentTest}.
      */
-    public function testTheScopeSelectorMatchesTheAttributeTheRuntimePutsOnTheRoot(): void
+    public function testTheEmittedScopeIsBuiltFromTheAttributeTheRuntimePutsOnEveryRoot(): void
     {
         $contract = $this->rating();
         $attributes = (new AlpineRuntimeAdapter())->rootAttributes(
@@ -90,9 +85,9 @@ final class ComponentAssetOrchestratorTest extends TestCase
         );
 
         self::assertSame('rating', $attributes['data-milpa-component'] ?? null);
-        self::assertSame(
-            '[data-milpa-component="rating"]',
-            (new ComponentAssetOrchestrator())->scopeFor($contract),
+        self::assertStringContainsString(
+            '[data-milpa-component="' . $attributes['data-milpa-component'] . '"]',
+            (new ComponentAssetOrchestrator())->collect([$contract])->styles,
         );
     }
 
@@ -151,35 +146,6 @@ final class ComponentAssetOrchestratorTest extends TestCase
         self::assertSame([], $assets->emitted);
         self::assertArrayHasKey('ghost@1', $assets->unreadable);
         self::assertTrue($assets->isEmpty());
-    }
-
-    /**
-     * F1, the decisive form — the emitted selector SELECTS the element a real renderer produced.
-     *
-     * Every other assertion here compares two strings the same code built, which cannot catch a scope
-     * that is internally consistent and matches nothing on the page. This one renders a component
-     * through the real renderer and asks the document, so the answer comes from the markup rather
-     * than from my reading of it.
-     */
-    public function testTheEmittedScopeActuallySelectsTheRenderedComponentRoot(): void
-    {
-        $html = (new FormPrimitiveHtmlRenderer(new AlpineRuntimeAdapter(), new XhtmlStateTransferCodec()))
-            ->render(new InputComponent(), new RenderRequest(
-                context: new ComponentContext('project-name-field', route: '/lab/form'),
-                props: ['name' => 'project_name', 'label' => 'Project'],
-            ))->output;
-
-        $scope = (new ComponentAssetOrchestrator())->scopeFor(InputComponent::contract());
-        self::assertSame(1, preg_match('/^\[([a-z-]+)="(.+)"\]$/', $scope, $parts), 'the scope must be one attribute selector');
-
-        $document = new DOMDocument();
-        $document->loadHTML('<!doctype html><html><body>' . $html . '</body></html>', \LIBXML_NOERROR);
-        $matched = (new DOMXPath($document))->query(
-            \sprintf('//*[@%s="%s"]', $parts[1], $parts[2]),
-        );
-
-        self::assertNotFalse($matched);
-        self::assertGreaterThan(0, $matched->length, 'the scope selector matched nothing in the rendered markup');
     }
 
     /**
