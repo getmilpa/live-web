@@ -17,6 +17,7 @@ namespace Milpa\Live\Rendering;
 use Milpa\Interfaces\Event\MilpaEventDispatcherInterface;
 use Milpa\Live\Contracts\Client\ClientRuntimeAdapterInterface;
 use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
+use Milpa\Live\Assets\ComponentMessages;
 use Milpa\Live\Contracts\Rendering\ComponentRendererInterface;
 use Milpa\Live\Contracts\Rendering\TemplateRendererInterface;
 use Milpa\Live\Contracts\Transport\StateTransferCodecInterface;
@@ -41,6 +42,8 @@ final readonly class AutocompleteHtmlRenderer implements ComponentRendererInterf
         private StateTransferCodecInterface $codec,
         ?TemplateRendererInterface $templates = null,
         private ?MilpaEventDispatcherInterface $dispatcher = null,
+        private readonly string $locale = ComponentMessages::DEFAULT_LOCALE,
+        private readonly ComponentMessages $words = new ComponentMessages(),
     ) {
         $this->templates = $templates ?? new LatteTemplateRenderer();
         // The dispatcher enters this package here; declaring milpa/live's holder makes
@@ -115,6 +118,7 @@ final readonly class AutocompleteHtmlRenderer implements ComponentRendererInterf
                 $errorId = $state->componentId . '-error';
                 return new RenderResult(
                     output: $this->templates->render($contract->defaultTemplate ?? 'components/autocomplete.latte', [
+                        't' => $this->words->for($contract, $this->locale),
                         'componentId' => $state->componentId,
                         'stateEnvelope' => $this->codec->encodeState($state),
                         'rootAttrs' => Html::attrs($rootAttributes),

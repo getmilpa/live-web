@@ -1,5 +1,5 @@
 {layout '../layouts/component.latte'}
 {block body}
-<div {$rootAttrs|noescape}><a class="mui-shell__skip" href="#{$mainId}">Saltar al contenido</a>
+<div {$rootAttrs|noescape}><a class="mui-shell__skip" href="#{$mainId}">{$t.skip_to_content}</a>
 {$childrenHtml|noescape}</div>
 {/block}

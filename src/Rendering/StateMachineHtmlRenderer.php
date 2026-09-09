@@ -17,6 +17,7 @@ namespace Milpa\Live\Rendering;
 use Milpa\Interfaces\Event\MilpaEventDispatcherInterface;
 use Milpa\Live\Contracts\Client\ClientRuntimeAdapterInterface;
 use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
+use Milpa\Live\Assets\ComponentMessages;
 use Milpa\Live\Contracts\Rendering\ComponentRendererInterface;
 use Milpa\Live\Contracts\Rendering\TemplateRendererInterface;
 use Milpa\Live\Contracts\Transport\StateTransferCodecInterface;
@@ -49,6 +50,8 @@ final readonly class StateMachineHtmlRenderer implements ComponentRendererInterf
         private StateTransferCodecInterface $codec,
         ?TemplateRendererInterface $templates = null,
         private ?MilpaEventDispatcherInterface $dispatcher = null,
+        private readonly string $locale = ComponentMessages::DEFAULT_LOCALE,
+        private readonly ComponentMessages $words = new ComponentMessages(),
     ) {
         $this->templates = $templates ?? new LatteTemplateRenderer();
         // The dispatcher enters this package here; declaring milpa/live's holder makes
@@ -78,7 +81,7 @@ final readonly class StateMachineHtmlRenderer implements ComponentRendererInterf
             $this->dispatcher,
             $contract->name,
             $request,
-            function () use ($component, $request): RenderResult {
+            function () use ($component, $request, $contract): RenderResult {
                 $state = $request->state ?? $component->mount($request->props, $request->context);
                 $stateEnvelope = $this->codec->encodeState($state);
 
@@ -88,6 +91,7 @@ final readonly class StateMachineHtmlRenderer implements ComponentRendererInterf
                 $transitions = array_values(array_filter(array_keys($fromHere), 'is_string'));
 
                 $html = $this->templates->render('components/state-machine.latte', [
+                    't' => $this->words->for($contract, $this->locale),
                     'componentId' => $state->componentId,
                     'stateEnvelope' => $stateEnvelope,
                     'rootAttrs' => Html::attrs([
