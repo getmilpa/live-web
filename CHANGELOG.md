@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/getmilpa/live-web/compare/v0.18.0...v0.19.0) (2026-09-09)
+
+
+### Features
+
+* a component's styles and script travel with the component ([#46](https://github.com/getmilpa/live-web/issues/46)) ([6223e21](https://github.com/getmilpa/live-web/commit/6223e21a8832e1b27c10a6c22837507a14e31bd8))
+
 ## [0.18.0](https://github.com/getmilpa/live-web/compare/v0.17.0...v0.18.0) (2026-09-09)
 
 
