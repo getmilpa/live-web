@@ -17,6 +17,7 @@ namespace Milpa\Live\Rendering;
 use Milpa\Interfaces\Event\MilpaEventDispatcherInterface;
 use Milpa\Live\Contracts\Client\ClientRuntimeAdapterInterface;
 use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
+use Milpa\Live\Assets\ComponentMessages;
 use Milpa\Live\Contracts\Rendering\ComponentRendererInterface;
 use Milpa\Live\Contracts\Rendering\TemplateRendererInterface;
 use Milpa\Live\Contracts\Transport\StateTransferCodecInterface;
@@ -62,6 +63,8 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
         private StateTransferCodecInterface $codec,
         ?TemplateRendererInterface $templates = null,
         private ?MilpaEventDispatcherInterface $dispatcher = null,
+        private readonly string $locale = ComponentMessages::DEFAULT_LOCALE,
+        private readonly ComponentMessages $words = new ComponentMessages(),
     ) {
         $this->templates = $templates ?? new LatteTemplateRenderer();
         // The dispatcher enters this package here; declaring milpa/live's holder makes
@@ -98,18 +101,22 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
             function () use ($component, $request, $contract): RenderResult {
                 $state = $request->state ?? $component->mount($request->props, $request->context);
                 $stateEnvelope = $this->codec->encodeState($state);
+                // The component's own words, in the language this page is being read in. Only the
+                // four primitives that HAVE words receive them; passing an empty array to the other
+                // seven would say they have some and lost them.
+                $t = $this->words->for($contract, $this->locale);
                 $html = match ($contract->name) {
-                    'dashboard-shell' => $this->shell($state->componentId, $stateEnvelope, $state->meta, $request->props),
-                    'dashboard-sidebar' => $this->sidebar($state->componentId, $stateEnvelope, $state->meta, $request->props),
+                    'dashboard-shell' => $this->shell($state->componentId, $stateEnvelope, $state->meta, $request->props, $t),
+                    'dashboard-sidebar' => $this->sidebar($state->componentId, $stateEnvelope, $state->meta, $request->props, $t),
                     'dashboard-main' => $this->main($state->componentId, $stateEnvelope, $state->meta, $request->props),
-                    'dashboard-topbar' => $this->topbar($state->componentId, $stateEnvelope, $state->meta, $request->props),
+                    'dashboard-topbar' => $this->topbar($state->componentId, $stateEnvelope, $state->meta, $request->props, $t),
                     'dashboard-grid' => $this->grid($state->componentId, $stateEnvelope, $state->meta, $request->props),
                     'dashboard-panel' => $this->panel($state->componentId, $stateEnvelope, $state->meta, $request->props),
                     'dashboard-page-header' => $this->pageHeader($state->componentId, $stateEnvelope, $state->meta, $request->props),
                     'dashboard-action-button' => $this->actionButton($state->componentId, $stateEnvelope, $state->meta, $request->props),
                     'dashboard-alert-list' => $this->alertList($state->componentId, $stateEnvelope, $state->meta, $request->props),
                     'metric-card' => $this->metric($state->componentId, $stateEnvelope, $state->data, $state->meta, $request->props),
-                    'data-table' => $this->table($state->componentId, $stateEnvelope, $state->data, $state->meta, $request->props),
+                    'data-table' => $this->table($state->componentId, $stateEnvelope, $state->data, $state->meta, $request->props, $t),
                 };
 
                 return new RenderResult(
@@ -123,14 +130,16 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
     }
 
     /**
-     * @param array<string, mixed> $meta
-     * @param array<string, mixed> $props
+     * @param array<string, mixed>  $meta
+     * @param array<string, mixed>  $props
+     * @param array<string, string> $t     The component's own words, already resolved for this page.
      */
-    private function shell(string $id, string $stateEnvelope, array $meta, array $props): string
+    private function shell(string $id, string $stateEnvelope, array $meta, array $props, array $t): string
     {
         $mainId = (string) ($props['mainId'] ?? $id . '-main');
 
         return $this->templates->render('components/dashboard-shell.latte', [
+            't' => $t,
             'componentId' => $id,
             'stateEnvelope' => $stateEnvelope,
             'rootAttrs' => Html::attrs([
@@ -146,10 +155,11 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
     }
 
     /**
-     * @param array<string, mixed> $meta
-     * @param array<string, mixed> $props
+     * @param array<string, mixed>  $meta
+     * @param array<string, mixed>  $props
+     * @param array<string, string> $t     The component's own words, already resolved for this page.
      */
-    private function sidebar(string $id, string $stateEnvelope, array $meta, array $props): string
+    private function sidebar(string $id, string $stateEnvelope, array $meta, array $props, array $t): string
     {
         $items = DashboardViewModelFields::list($meta, $props, 'items');
         $active = DashboardViewModelFields::string($meta, $props, 'active');
@@ -172,12 +182,13 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
         }
 
         return $this->templates->render('components/dashboard-sidebar.latte', [
+            't' => $t,
             'componentId' => $id,
             'stateEnvelope' => $stateEnvelope,
             'rootAttrs' => Html::attrs([
                 'class' => 'mui-sidebar',
                 'id' => (string) ($meta['id'] ?? $id),
-                'aria-label' => 'principal',
+                'aria-label' => $t['nav_label'] ?? 'Main',
                 'data-milpa-component-id' => $id,
             ]),
             'brand' => DashboardViewModelFields::string($meta, $props, 'brand', 'Milpa'),
@@ -206,24 +217,26 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
     }
 
     /**
-     * @param array<string, mixed> $meta
-     * @param array<string, mixed> $props
+     * @param array<string, mixed>  $meta
+     * @param array<string, mixed>  $props
+     * @param array<string, string> $t     The component's own words, already resolved for this page.
      */
-    private function topbar(string $id, string $stateEnvelope, array $meta, array $props): string
+    private function topbar(string $id, string $stateEnvelope, array $meta, array $props, array $t): string
     {
         $eyebrow = DashboardViewModelFields::string($meta, $props, 'eyebrow');
         $title = DashboardViewModelFields::string($meta, $props, 'title');
         $controls = (string) ($props['controls'] ?? $meta['controls'] ?? 'ops-sidebar');
-        $placeholder = (string) ($props['searchPlaceholder'] ?? $meta['searchPlaceholder'] ?? 'Buscar');
+        $placeholder = (string) ($props['searchPlaceholder'] ?? $meta['searchPlaceholder'] ?? $t['search'] ?? 'Search');
 
         return $this->templates->render('components/dashboard-topbar.latte', [
+            't' => $t,
             'componentId' => $id,
             'stateEnvelope' => $stateEnvelope,
             'rootAttrs' => Html::attrs(['class' => 'mui-topbar', 'data-milpa-component-id' => $id]),
             'toggleAttrs' => Html::attrs([
                 'class' => 'mui-btn mui-btn--ghost mui-btn--icon mui-topbar__nav-toggle',
                 'type' => 'button',
-                'aria-label' => 'Abrir navegacion',
+                'aria-label' => $t['open_navigation'] ?? 'Open navigation',
                 'aria-controls' => $controls,
                 ':aria-expanded' => "navOpen ? 'true' : 'false'",
                 '@click' => 'navOpen = !navOpen',
@@ -235,7 +248,7 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
                 'class' => 'mui-input mui-input--sm',
                 'id' => $id . '-search',
                 'type' => 'search',
-                'aria-label' => 'Buscar',
+                'aria-label' => $t['search'] ?? 'Search',
                 'placeholder' => $placeholder,
             ]),
             'childrenHtml' => $this->children($props),
@@ -385,11 +398,12 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
     }
 
     /**
-     * @param array<string, mixed> $data
-     * @param array<string, mixed> $meta
-     * @param array<string, mixed> $props
+     * @param array<string, mixed>  $data
+     * @param array<string, mixed>  $meta
+     * @param array<string, mixed>  $props
+     * @param array<string, string> $t     The component's own words, already resolved for this page.
      */
-    private function table(string $id, string $stateEnvelope, array $data, array $meta, array $props): string
+    private function table(string $id, string $stateEnvelope, array $data, array $meta, array $props, array $t): string
     {
         $columns = is_array($meta['columns'] ?? null) ? $meta['columns'] : [];
         $rows = is_array($meta['rows'] ?? null) ? $meta['rows'] : [];
@@ -438,8 +452,8 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
             $rowLabel = (string) ($row['label'] ?? $row['account'] ?? $row['name'] ?? $rowId);
             $body[] = '<tr :aria-selected="isSelected(' . $encodedRowId . ') ? \'true\' : \'false\'">';
             if ($selectable) {
-                $body[] = '<td class="mui-table__check"><input class="mui-checkbox" type="checkbox" aria-label="Seleccionar '
-                    . Html::escape($rowLabel)
+                $body[] = '<td class="mui-table__check"><input class="mui-checkbox" type="checkbox" aria-label="'
+                    . Html::escape(\sprintf($t['select_row'] ?? 'Select %s', $rowLabel))
                     . '" :checked="isSelected('
                     . $encodedRowId
                     . ')" @change="toggleRow('
@@ -468,6 +482,7 @@ final readonly class DashboardHtmlRenderer implements ComponentRendererInterface
         }
 
         return $this->templates->render('components/data-table.latte', [
+            't' => $t,
             'componentId' => $id,
             'stateEnvelope' => $stateEnvelope,
             'rootAttrs' => Html::attrs([

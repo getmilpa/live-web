@@ -24,6 +24,11 @@ use Milpa\Live\ValueObjects\ComponentContract;
  * render it — so a plugin could contribute markup and behaviour but never a look, and the promise
  * that the component system was extensible by registry was false at exactly that point.
  *
+ * Three payloads travel by this one seam — markup's styles, its script, and its words. Splitting
+ * them would build the second system this was meant to end: today `milpa/admin` holds one component
+ * system's look in a 4,849-line bundle and its words in a 414-string `private const`, and the two
+ * have already drifted.
+ *
  * The page hands over the contracts it is about to render — the same list
  * {@see \Milpa\Live\Contracts\Client\ClientRuntimeAdapterInterface::bootPayload()} already receives —
  * and gets back one `<style>` and one `<script>`. Emission is keyed by `name@version`, so a component
@@ -36,6 +41,7 @@ final class ComponentAssetOrchestrator
 {
     public function __construct(
         private readonly CssScoper $scoper = new CssScoper(),
+        private readonly ComponentMessages $messages = new ComponentMessages(),
     ) {
     }
 
@@ -43,11 +49,13 @@ final class ComponentAssetOrchestrator
      * Gathers what this page's components declared: read, scoped, deduplicated, ready to embed.
      *
      * @param array<int, ComponentContract> $contracts Every contract the page may render.
+     * @param string                        $locale    The language this page is being read in.
      */
-    public function collect(array $contracts): PageAssets
+    public function collect(array $contracts, string $locale = ComponentMessages::DEFAULT_LOCALE): PageAssets
     {
         $styles = [];
         $scripts = [];
+        $messages = [];
         $emitted = [];
         $unreadable = [];
         $seen = [];
@@ -90,6 +98,14 @@ final class ComponentAssetOrchestrator
                 }
             }
 
+            // Namespaced by component for the same reason the stylesheet is scoped by it: two
+            // strangers may both call a key `label`, and neither should have to know the other
+            // exists to keep its own word.
+            foreach ($this->messages->for($contract, $locale) as $messageKey => $message) {
+                $messages[$contract->name . '.' . $messageKey] = $message;
+                $contributed = true;
+            }
+
             if ($contributed) {
                 $emitted[] = $key;
             }
@@ -98,6 +114,7 @@ final class ComponentAssetOrchestrator
         return new PageAssets(
             styles: implode("\n", $styles),
             scripts: $scripts,
+            messages: $messages,
             emitted: $emitted,
             unreadable: $unreadable,
         );

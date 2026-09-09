@@ -27,12 +27,14 @@ final readonly class PageAssets
 {
     /**
      * @param array<int, string>    $scripts    Client scripts, in declaration order.
+     * @param array<string, string> $messages   Resolved words, keyed `component.key`.
      * @param array<int, string>    $emitted    `name@version` of every component that contributed.
      * @param array<string, string> $unreadable `name@version` => the path it declared and does not ship.
      */
     public function __construct(
         public string $styles = '',
         public array $scripts = [],
+        public array $messages = [],
         public array $emitted = [],
         public array $unreadable = [],
     ) {
@@ -64,11 +66,28 @@ final readonly class PageAssets
     }
 
     /**
+     * The page's words as a payload the client can read, or nothing when there are none.
+     *
+     * JSON in a `type="application/json"` script rather than a JS assignment: the browser will not
+     * execute it, so a translation carrying an apostrophe or a `</script>` cannot become code.
+     */
+    public function messagesTag(): string
+    {
+        if ($this->messages === []) {
+            return '';
+        }
+
+        $json = json_encode($this->messages, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES | \JSON_HEX_TAG | \JSON_HEX_AMP | \JSON_HEX_APOS | \JSON_HEX_QUOT);
+
+        return '<script type="application/json" id="milpa-messages">' . $json . '</script>';
+    }
+
+    /**
      * Whether this page has nothing to embed — including the case where every component that
      * declared something declared a file it does not ship, which is a defect, not an absence.
      */
     public function isEmpty(): bool
     {
-        return $this->styleTag() === '' && $this->scriptTag() === '';
+        return $this->styleTag() === '' && $this->scriptTag() === '' && $this->messagesTag() === '';
     }
 }
