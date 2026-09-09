@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1](https://github.com/getmilpa/live-web/compare/v0.22.0...v0.22.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* retire the message API nothing asked for ([#56](https://github.com/getmilpa/live-web/issues/56)) ([2e4613a](https://github.com/getmilpa/live-web/commit/2e4613ad4aa43d098a0c0e65f74e684de28123d5))
+
 ## [0.22.0](https://github.com/getmilpa/live-web/compare/v0.21.1...v0.22.0) (2026-09-09)
 
 
