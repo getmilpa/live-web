@@ -30,6 +30,7 @@ final readonly class PageAssets
      * @param array<string, string> $messages   Resolved words, keyed `component.key`.
      * @param array<int, string>    $emitted    `name@version` of every component that contributed.
      * @param array<string, string> $unreadable `name@version` => the path it declared and does not ship.
+     * @param array<string, string> $refused    `name@version` => why part of an override was not honoured.
      */
     public function __construct(
         public string $styles = '',
@@ -37,6 +38,7 @@ final readonly class PageAssets
         public array $messages = [],
         public array $emitted = [],
         public array $unreadable = [],
+        public array $refused = [],
     ) {
     }
 
