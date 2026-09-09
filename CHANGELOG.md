@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/getmilpa/live-web/compare/v0.16.0...v0.17.0) (2026-09-09)
+
+
+### Features
+
+* ship the design tokens, so a surface can look like the house without copying them ([#42](https://github.com/getmilpa/live-web/issues/42)) ([b6b6f6e](https://github.com/getmilpa/live-web/commit/b6b6f6eb2bef28e607ae13022e84bd631f9e8aaa))
+
 ## [0.16.0](https://github.com/getmilpa/live-web/compare/v0.15.0...v0.16.0) (2026-09-08)
 
 
