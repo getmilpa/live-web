@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/getmilpa/live-web/compare/v0.21.1...v0.22.0) (2026-09-09)
+
+
+### Features
+
+* a component's words travel with the component ([#54](https://github.com/getmilpa/live-web/issues/54)) ([81e6085](https://github.com/getmilpa/live-web/commit/81e6085a1511f5f9462019569fb10dc254eac6cb))
+
 ## [0.21.1](https://github.com/getmilpa/live-web/compare/v0.21.0...v0.21.1) (2026-09-09)
 
 
