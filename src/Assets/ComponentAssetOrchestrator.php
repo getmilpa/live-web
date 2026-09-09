@@ -42,6 +42,7 @@ final class ComponentAssetOrchestrator
     public function __construct(
         private readonly CssScoper $scoper = new CssScoper(),
         private readonly ComponentMessages $messages = new ComponentMessages(),
+        private readonly ?PresentationOverrides $overrides = null,
     ) {
     }
 
@@ -58,6 +59,7 @@ final class ComponentAssetOrchestrator
         $messages = [];
         $emitted = [];
         $unreadable = [];
+        $refused = [];
         $seen = [];
 
         foreach ($contracts as $contract) {
@@ -75,6 +77,8 @@ final class ComponentAssetOrchestrator
             }
 
             $contributed = false;
+
+            $override = $this->overrides?->forComponent($contract->name);
 
             if ($presentation->styles !== null) {
                 $css = $this->read($presentation->styles);
@@ -101,9 +105,47 @@ final class ComponentAssetOrchestrator
             // Namespaced by component for the same reason the stylesheet is scoped by it: two
             // strangers may both call a key `label`, and neither should have to know the other
             // exists to keep its own word.
-            foreach ($this->messages->for($contract, $locale) as $messageKey => $message) {
+            $words = $this->messages->for($contract, $locale);
+
+            // Laid over BY KEY, and only over keys the component declares: an override may say a
+            // word differently, never invent one the component has no place to print.
+            if ($override?->messages !== null) {
+                $words = array_merge($words, array_intersect_key(
+                    $this->messages->for(new ComponentContract(
+                        name: $contract->name,
+                        contractVersion: $contract->contractVersion,
+                        presentation: $override,
+                    ), $locale),
+                    $words,
+                ));
+            }
+
+            foreach ($words as $messageKey => $message) {
                 $messages[$contract->name . '.' . $messageKey] = $message;
                 $contributed = true;
+            }
+
+            // AFTER the component's own, so the cascade does the overriding: an authorized override
+            // is three lines on top of a look, not a reproduction of it. Scoped to the component it
+            // is changing — never to whoever was allowed to change it — because the rules have to
+            // reach the markup that exists.
+            if ($override?->styles !== null) {
+                $css = $this->read($override->styles);
+
+                if ($css === null) {
+                    $unreadable[$key . ' (override)'] = $override->styles;
+                } else {
+                    $styles[] = $this->scoper->scope($css, $this->scopeFor($contract));
+                    $contributed = true;
+                }
+            }
+
+            // A stylesheet changes how somebody else's component LOOKS. A script changes what it
+            // DOES, on a page it does not own, and no authorization collected for the first is an
+            // authorization for the second. Refused here rather than trusted to the store, so a
+            // store that hands one over still cannot get it onto the page.
+            if ($override?->script !== null) {
+                $refused[$key] = 'an override may not carry a script';
             }
 
             if ($contributed) {
@@ -117,6 +159,7 @@ final class ComponentAssetOrchestrator
             messages: $messages,
             emitted: $emitted,
             unreadable: $unreadable,
+            refused: $refused,
         );
     }
 
