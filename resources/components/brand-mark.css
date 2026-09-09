@@ -1,0 +1,68 @@
+/*
+ * The mark's three states, and all three are the same plant rather than three animations pasted
+ * together: the grains are SOWN on arrival, they GROW while something is waited for, and they open
+ * once when it is READY. The wave uses the same `--i` as the sowing, so one numbering governs both
+ * and they cannot disagree.
+ *
+ * Keyframe names carry the component's own prefix on purpose. Scoping confines SELECTORS to a
+ * component; it deliberately leaves `@keyframes` alone, because prefixing a keyframe stop (`from`,
+ * `to`, a percentage) kills the animation. That leaves keyframe NAMES global, so a component that
+ * calls one `grow` is one stranger away from having its animation replaced by somebody else's.
+ */
+
+:host {
+  display: block;
+  width: clamp(5rem, 13vw, 9rem);
+  height: auto;
+  overflow: visible;
+}
+
+/* The mark is BRAND, not UI: constant mono-gold in both themes, never var(--accent) — the logo kit
+   forbids it, and WCAG exempts logotypes from contrast adaptation. Hence a literal, not a token. */
+rect {
+  fill: #E8B14C;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: milpa-mark-sow var(--dur-slow, 420ms) var(--ease-standard, cubic-bezier(.4, 0, .2, 1)) forwards;
+  animation-delay: calc(var(--i) * var(--stagger-tight, 40ms));
+}
+
+:host([data-state="growing"]) rect {
+  opacity: 1;
+  animation: milpa-mark-grow 1.4s var(--ease-standard, cubic-bezier(.4, 0, .2, 1)) infinite;
+  animation-delay: calc(var(--i) * 90ms);
+}
+
+:host([data-state="ready"]) rect {
+  opacity: 1;
+  animation: milpa-mark-ready var(--dur-slow, 420ms) var(--ease-standard, cubic-bezier(.4, 0, .2, 1)) both;
+  animation-delay: calc(var(--i) * var(--stagger-tight, 40ms));
+}
+
+@keyframes milpa-mark-sow {
+  from { opacity: 0; transform: translateY(-.6rem) scale(.85); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes milpa-mark-grow {
+  0%, 100% { opacity: .35; transform: scale(.88); }
+  45%      { opacity: 1;   transform: scale(1.06); }
+}
+
+@keyframes milpa-mark-ready {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/*
+ * Whoever asked for less motion gets the STATE, not the choreography: the mark dims while it waits
+ * and comes back when it is done. A loader that vanishes under reduced-motion leaves that person
+ * with no way to know something is running.
+ */
+@media (prefers-reduced-motion: reduce) {
+  rect { animation: none; opacity: 1; transform: none; }
+  :host([data-state="growing"]) rect { animation: none; opacity: .5; }
+  :host([data-state="ready"]) rect { animation: none; opacity: 1; }
+}

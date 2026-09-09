@@ -62,6 +62,15 @@ final class DesignTokens
      * A surface that pins `data-theme="dark"` needs only the first; one that honours the reader's
      * theme needs both.
      */
+    /**
+     * The mark's gold, stated once.
+     *
+     * It is deliberately NOT a CSS custom property: the mark is brand, not UI, so it stays constant
+     * in both themes while every token in the system is free to change with the ground. Anything
+     * that needs this colour reads it here, which is what keeps "one place states it" true.
+     */
+    public const MARK_GOLD = '#E8B14C';
+
     public const WORDMARK = 'milpa-wordmark.svg';
 
     public const WORDMARK_LIGHT = 'milpa-wordmark-light.svg';

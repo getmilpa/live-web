@@ -93,29 +93,32 @@ final class CssScoper
 
     private function rewriteBlock(string $prelude, string $body, string $scope): string
     {
-        $trimmed = trim($prelude);
+        // Comments are lifted out BEFORE anything is decided, because a comment sitting in front of
+        // an at-rule makes the prelude start with `/`, and the at-rule then reads as an ordinary
+        // selector: `@media` gets prefixed like a class and its body is never recursed into, so
+        // every rule inside it silently stops applying. Same lift, two decisions downstream.
+        [$comments, $text] = $this->liftComments($prelude);
+        $trimmed = trim($text);
 
         if (str_starts_with($trimmed, '@')) {
             $name = strtolower((string) preg_replace('/^@([a-z-]*).*$/is', '$1', $trimmed));
             $body = \in_array($name, self::RECURSIVE_AT_RULES, true) ? $this->scope($body, $scope) : $body;
 
-            return $prelude . '{' . $body . '}';
+            return $comments . $text . '{' . $body . '}';
         }
 
-        return $this->prefixSelectorList($prelude, $scope) . '{' . $body . '}';
+        return $comments . $this->prefixSelectorList($text, $scope) . '{' . $body . '}';
     }
 
     /**
-     * Prefixes every selector in a comma-separated list, preserving the author's leading whitespace.
+     * Splits a prelude into its comments and the CSS that decides what the prelude IS.
+     *
+     * @return array{0: string, 1: string} The comments, then the prelude without them.
      */
-    private function prefixSelectorList(string $prelude, string $scope): string
+    private function liftComments(string $prelude): array
     {
-        // Comments come out before anything is split: a prose comma inside one would otherwise read
-        // as a selector separator, and the comment's own words would be prefixed as if they were
-        // selectors. Held aside and re-emitted, so the author keeps the comment and the parser never
-        // sees it.
         $comments = '';
-        $selectorText = (string) preg_replace_callback(
+        $text = (string) preg_replace_callback(
             '#/\*.*?\*/#s',
             static function (array $match) use (&$comments): string {
                 $comments .= $match[0];
@@ -125,6 +128,17 @@ final class CssScoper
             $prelude,
         );
 
+        return [$comments, $text];
+    }
+
+    /**
+     * Prefixes every selector in a comma-separated list, preserving the author's leading whitespace.
+     */
+    private function prefixSelectorList(string $prelude, string $scope): string
+    {
+        // A prose comma inside a comment would read as a selector separator, and the comment's own
+        // words would be prefixed as if they were selectors. The caller has already lifted them.
+        $selectorText = $prelude;
         $lead = substr($selectorText, 0, \strlen($selectorText) - \strlen(ltrim($selectorText)));
         $selectors = [];
 
@@ -136,7 +150,7 @@ final class CssScoper
             }
         }
 
-        return $comments . $lead . implode(', ', $selectors) . ' ';
+        return $lead . implode(', ', $selectors) . ' ';
     }
 
     private function prefixSelector(string $selector, string $scope): string

@@ -140,6 +140,29 @@ final class CssScoperTest extends TestCase
         self::assertStringContainsString(self::SCOPE . ' .field ', $scoped);
     }
 
+    /**
+     * The defect the mark found: a comment in front of an at-rule made the prelude start with `/`,
+     * so `@media` read as an ordinary selector — prefixed like a class, its body never recursed
+     * into, and every rule inside it silently dead. Twenty-two falsifiers missed it because no
+     * fixture had ever put a comment in front of an at-rule.
+     */
+    public function testACommentBeforeAnAtRuleDoesNotTurnItIntoASelector(): void
+    {
+        $scoped = $this->scope("/* why */\n@media (min-width: 40rem) { .grid { display: grid; } }");
+
+        self::assertStringNotContainsString(self::SCOPE . ' @media', $scoped);
+        self::assertStringContainsString('@media (min-width: 40rem)', $scoped);
+        self::assertStringContainsString(self::SCOPE . ' .grid ', $scoped);
+    }
+
+    public function testACommentBeforeKeyframesStillLeavesTheStopsAlone(): void
+    {
+        $scoped = $this->scope("/* the wave */\n@keyframes pop { from { opacity: 0; } }");
+
+        self::assertStringNotContainsString(self::SCOPE, $scoped);
+        self::assertStringContainsString('from {', $scoped);
+    }
+
     public function testDeclarationsAreCopiedByteForByte(): void
     {
         $scoped = $this->scope('.a { background: url("x,y.png"); content: "}"; }');
