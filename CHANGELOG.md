@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/getmilpa/live-web/compare/v0.20.0...v0.21.0) (2026-09-09)
+
+
+### Features
+
+* the house's mark is a component that carries its own look ([#50](https://github.com/getmilpa/live-web/issues/50)) ([df28f23](https://github.com/getmilpa/live-web/commit/df28f23e64d6a66780cf677615cde0bd2c93248f))
+
 ## [0.20.0](https://github.com/getmilpa/live-web/compare/v0.19.0...v0.20.0) (2026-09-09)
 
 
