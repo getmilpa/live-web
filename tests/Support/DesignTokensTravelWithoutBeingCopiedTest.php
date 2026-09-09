@@ -112,6 +112,40 @@ final class DesignTokensTravelWithoutBeingCopiedTest extends TestCase
         self::assertCount(6, $m[1]);
     }
 
+    /**
+     * EL WORDMARK VIAJA COMO VECTOR, y es el del kit byte a byte.
+     *
+     * El kit lo exige: «El wordmark NUNCA se construye con tipografía + trucos CSS… Usá SIEMPRE el
+     * vector». Y byte a byte porque una copia que diverge es lo que este paquete existe para acabar:
+     * si esto se hubiera pegado a mano o retocado, el hash lo dice.
+     */
+    public function testTheWordmarkShipsAsTheKitsVector(): void
+    {
+        foreach ([DesignTokens::WORDMARK, DesignTokens::WORDMARK_LIGHT] as $name) {
+            $path = DesignTokens::path($name);
+            self::assertNotNull($path, $name . ' is named and not shipped');
+            $svg = (string) file_get_contents($path);
+            self::assertStringStartsWith('<svg', $svg);
+            self::assertStringContainsString('viewBox="0 0 2406.90 900.00"', $svg, 'the kit\'s own viewBox');
+            self::assertStringContainsString('#E8B14C', $svg, 'the grano stays the kit gold in both variants');
+        }
+    }
+
+    /**
+     * THE ONE THAT CAN SAY NO: a vector is served as a vector.
+     *
+     * `contentType()` used to answer `text/css` for anything that was not a woff2. Serving image
+     * bytes as a stylesheet renders NOTHING and raises no error — the page looks styled while it is
+     * not, which is the exact failure shape this class exists to end.
+     */
+    public function testEachKindIsServedAsItsOwnKind(): void
+    {
+        self::assertSame('image/svg+xml', DesignTokens::contentType(DesignTokens::WORDMARK));
+        self::assertSame('image/svg+xml', DesignTokens::contentType(DesignTokens::WORDMARK_LIGHT));
+        self::assertSame('font/woff2', DesignTokens::contentType('space-mono-400-latin.woff2'));
+        self::assertSame('text/css; charset=utf-8', DesignTokens::contentType(DesignTokens::TOKENS));
+    }
+
     /** The licence travels with what it licenses. */
     public function testTheLicenceShipsBesideTheFaces(): void
     {
