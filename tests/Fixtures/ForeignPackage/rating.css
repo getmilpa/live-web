@@ -1,0 +1,18 @@
+/* Authored against the house tokens; the component never names itself in a selector. */
+:host {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+.label,
+.star[data-state="on"] {
+  color: var(--color-accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .star {
+    transition: transform 120ms ease-out;
+  }
+}
+@keyframes rating-pop {
+  from { transform: scale(1); }
+  to { transform: scale(1.2); }
+}
