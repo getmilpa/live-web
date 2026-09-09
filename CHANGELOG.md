@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/getmilpa/live-web/compare/v0.22.1...v0.23.0) (2026-09-09)
+
+
+### Features
+
+* overriding somebody else's component is not the same act as shipping your own ([#58](https://github.com/getmilpa/live-web/issues/58)) ([b32b696](https://github.com/getmilpa/live-web/commit/b32b6965803e5aa56b987041296ba926ab87ad8e))
+
 ## [0.22.1](https://github.com/getmilpa/live-web/compare/v0.22.0...v0.22.1) (2026-09-09)
 
 
