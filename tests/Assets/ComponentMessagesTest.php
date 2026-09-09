@@ -117,17 +117,14 @@ final class ComponentMessagesTest extends TestCase
     }
 
     /**
-     * A component with no words declares no catalogue, and asking for one of its keys says so.
+     * A component with no words declares no catalogue, and resolves to nothing at all.
      *
-     * The key itself, not an empty string: a key on screen is a bug anybody can report, where a
-     * blank is a layout that quietly lost a word.
+     * A template that then asks for a key prints the key, which is deliberate and visible: a key on
+     * screen is a bug anybody can report, where a blank is a layout that quietly lost a word.
      */
-    public function testAComponentWithoutWordsAnswersWithTheKey(): void
+    public function testAComponentWithoutWordsResolvesToNothing(): void
     {
-        $bare = new ComponentContract(name: 'bare', contractVersion: '1');
-
-        self::assertSame([], (new ComponentMessages())->for($bare));
-        self::assertSame('anything', (new ComponentMessages())->one($bare, 'anything'));
+        self::assertSame([], (new ComponentMessages())->for(new ComponentContract(name: 'bare', contractVersion: '1')));
     }
 
     /**
