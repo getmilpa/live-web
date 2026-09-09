@@ -50,6 +50,23 @@ final class DesignTokens
     public const FONTS = 'milpa-fonts.css';
 
     /**
+     * The wordmark, as vector art, in its two theme variants.
+     *
+     * The logo kit states it as a hard rule: the wordmark is never assembled from type plus CSS
+     * tricks — a displaced span or pseudo-element standing in for the grain leaves the grain
+     * floating between letters and the `i` keeping its own dot, so the mark reads with two. It
+     * ships as a file for that reason, rather than as markup a surface could reconstruct.
+     *
+     * Two variants because the kit draws the letters in `currentColor` while these are the
+     * resolved bicolour marks: the grain stays gold in both and the letters change with the ground.
+     * A surface that pins `data-theme="dark"` needs only the first; one that honours the reader's
+     * theme needs both.
+     */
+    public const WORDMARK = 'milpa-wordmark.svg';
+
+    public const WORDMARK_LIGHT = 'milpa-wordmark-light.svg';
+
+    /**
      * The faces, shipped rather than fetched — Rod's decision (greenhouse decisions/0243).
      *
      * The tokens named `Space Grotesk` and `Space Mono` and NOTHING loaded them: zero `@font-face`
@@ -81,7 +98,8 @@ final class DesignTokens
     {
         $dir = \dirname(__DIR__, 2) . '/resources/design/';
         $file = match (true) {
-            $name === self::TOKENS, $name === self::FONTS => $dir . $name,
+            $name === self::TOKENS, $name === self::FONTS,
+            $name === self::WORDMARK, $name === self::WORDMARK_LIGHT => $dir . $name,
             \in_array($name, self::FACES, true) => $dir . 'fonts/' . $name,
             default => null,
         };
@@ -98,7 +116,12 @@ final class DesignTokens
      */
     public static function defaultUrls(): array
     {
-        $urls = [self::TOKENS => '/' . self::TOKENS, self::FONTS => '/' . self::FONTS];
+        $urls = [
+            self::TOKENS => '/' . self::TOKENS,
+            self::FONTS => '/' . self::FONTS,
+            self::WORDMARK => '/' . self::WORDMARK,
+            self::WORDMARK_LIGHT => '/' . self::WORDMARK_LIGHT,
+        ];
         foreach (self::FACES as $face) {
             $urls[$face] = '/fonts/' . $face;
         }
@@ -106,9 +129,19 @@ final class DesignTokens
         return $urls;
     }
 
-    /** The MIME type a host should serve `$name` with. */
+    /**
+     * The MIME type a host should serve `$name` with — by extension, not by default.
+     *
+     * Falling back to `text/css` for anything unrecognised is how an image gets served as a
+     * stylesheet: the `<img>` renders nothing, no error is raised, and the page looks styled while
+     * it is not. Same failure shape this class exists to end, one level down.
+     */
     public static function contentType(string $name = self::TOKENS): string
     {
-        return str_ends_with($name, '.woff2') ? 'font/woff2' : 'text/css; charset=utf-8';
+        return match (true) {
+            str_ends_with($name, '.woff2') => 'font/woff2',
+            str_ends_with($name, '.svg') => 'image/svg+xml',
+            default => 'text/css; charset=utf-8',
+        };
     }
 }
