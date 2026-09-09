@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/getmilpa/live-web/compare/v0.19.0...v0.20.0) (2026-09-09)
+
+
+### Features
+
+* the wordmark ships as the kit's vector ([#48](https://github.com/getmilpa/live-web/issues/48)) ([d584ab8](https://github.com/getmilpa/live-web/commit/d584ab8586d23b8a01131aab3f582c17b47e893e))
+
 ## [0.19.0](https://github.com/getmilpa/live-web/compare/v0.18.0...v0.19.0) (2026-09-09)
 
 
