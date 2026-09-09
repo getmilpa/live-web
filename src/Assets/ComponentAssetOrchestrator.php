@@ -108,8 +108,11 @@ final class ComponentAssetOrchestrator
      *
      * It is the marker the Alpine adapter already puts on every component root, so scoping costs no
      * renderer change and cannot drift from what is actually in the DOM.
+     *
+     * Private on purpose: a surface that wanted this would be about to write a rule for somebody
+     * else's component, which is the thing this whole seam exists to make unnecessary.
      */
-    public function scopeFor(ComponentContract $contract): string
+    private function scopeFor(ComponentContract $contract): string
     {
         return '[data-milpa-component="' . str_replace(['\\', '"'], ['\\\\', '\\"'], $contract->name) . '"]';
     }

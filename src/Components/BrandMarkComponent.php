@@ -15,7 +15,6 @@ declare(strict_types=1);
 namespace Milpa\Live\Components;
 
 use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
-use Milpa\Live\Support\DesignTokens;
 use Milpa\Live\ValueObjects\ComponentContext;
 use Milpa\Live\ValueObjects\ComponentContract;
 use Milpa\Live\ValueObjects\ComponentPresentation;
@@ -90,17 +89,6 @@ final class BrandMarkComponent implements ComponentDefinitionInterface
         }
 
         return $grains;
-    }
-
-    /**
-     * The mark's gold, which is the brand's and never the theme's.
-     *
-     * Read from the design system rather than written here, so the one place that may state it
-     * stays the one place that states it.
-     */
-    public static function gold(): string
-    {
-        return DesignTokens::MARK_GOLD;
     }
 
     /**
