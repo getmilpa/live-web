@@ -60,24 +60,6 @@ final class ComponentMessages
     }
 
     /**
-     * One word, or the key itself when nothing answers.
-     */
-    public function one(ComponentContract $contract, string $key, string $locale = self::DEFAULT_LOCALE): string
-    {
-        return $this->for($contract, $locale)[$key] ?? $key;
-    }
-
-    /**
-     * The locales this component actually ships, so a surface can offer what exists.
-     *
-     * @return array<int, string>
-     */
-    public function locales(ComponentContract $contract): array
-    {
-        return array_keys($this->catalogue($contract));
-    }
-
-    /**
      * @return array<string, array<string, string>>
      */
     private function catalogue(ComponentContract $contract): array
