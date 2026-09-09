@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/getmilpa/live-web/compare/v0.21.0...v0.21.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* retire what nothing calls ([#52](https://github.com/getmilpa/live-web/issues/52)) ([a4ff9f5](https://github.com/getmilpa/live-web/commit/a4ff9f5e480ba281fb660f849c15ff1b22f679a5))
+
 ## [0.21.0](https://github.com/getmilpa/live-web/compare/v0.20.0...v0.21.0) (2026-09-09)
 
 
