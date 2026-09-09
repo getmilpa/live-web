@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/getmilpa/live-web/compare/v0.17.0...v0.18.0) (2026-09-09)
+
+
+### Features
+
+* ship the faces the tokens name, as woff2, so a surface can look like itself offline ([#44](https://github.com/getmilpa/live-web/issues/44)) ([7dad129](https://github.com/getmilpa/live-web/commit/7dad12907948b67ba4162f04495e6f62fd119286))
+
 ## [0.17.0](https://github.com/getmilpa/live-web/compare/v0.16.0...v0.17.0) (2026-09-09)
 
 
