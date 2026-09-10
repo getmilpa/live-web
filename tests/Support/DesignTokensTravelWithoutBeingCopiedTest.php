@@ -164,4 +164,25 @@ final class DesignTokensTravelWithoutBeingCopiedTest extends TestCase
         self::assertSame('/milpa-fonts.css', $urls[DesignTokens::FONTS]);
         self::assertSame('/fonts/space-grotesk-latin.woff2', $urls['space-grotesk-latin.woff2'], 'flattening this serves a stylesheet whose every src is a 404');
     }
+
+    /**
+     * THE APP ICON TRAVELS LIKE THE WORDMARK, and its `<link>` has one author.
+     *
+     * 🚨 FIVE PAGES NEEDED AN ICON AND NONE DECLARED ONE. Measured on a rendered panel, `GET
+     * /favicon.ico` answered 404 on every load: a document that declares no icon makes the browser
+     * guess at the origin root, and that root belongs to no plugin. Five hosts writing five copies of
+     * the tag was the duplication waiting to happen (greenhouse decisions/0286).
+     */
+    public function testTheAppIconShipsAndItsLinkHasOneAuthor(): void
+    {
+        $path = DesignTokens::path(DesignTokens::APP_ICON);
+        self::assertNotNull($path, 'the package ships the file it names');
+        self::assertStringContainsString('<svg', (string) file_get_contents($path));
+        self::assertSame('image/svg+xml', DesignTokens::contentType(DesignTokens::APP_ICON), 'not text/css — an icon served as a stylesheet renders nothing and raises nothing');
+        self::assertArrayHasKey(DesignTokens::APP_ICON, DesignTokens::defaultUrls());
+
+        $link = DesignTokens::iconLink('/panel/assets/milpa-app-icon.svg');
+        self::assertSame('<link rel="icon" type="image/svg+xml" href="/panel/assets/milpa-app-icon.svg">', $link);
+        self::assertStringContainsString('&quot;', DesignTokens::iconLink('a"b'), 'the href is escaped: a host builds it from its own configured route');
+    }
 }
