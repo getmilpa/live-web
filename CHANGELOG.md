@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/getmilpa/live-web/compare/v0.23.0...v0.24.0) (2026-09-10)
+
+
+### Features
+
+* **design:** the app icon ships with the design assets, and its `<link>` has one author ([#60](https://github.com/getmilpa/live-web/issues/60)) ([42bce6f](https://github.com/getmilpa/live-web/commit/42bce6f30091f882bb3814da15edb9589485f8e5))
+
 ## [0.23.0](https://github.com/getmilpa/live-web/compare/v0.22.1...v0.23.0) (2026-09-09)
 
 
