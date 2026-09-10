@@ -71,6 +71,18 @@ final class DesignTokens
      */
     public const MARK_GOLD = '#E8B14C';
 
+    /**
+     * THE APP ICON — what a browser puts in a tab, and what it asks for at `/favicon.ico` when no page
+     * says otherwise.
+     *
+     * 🚨 IT SHIPS HERE BECAUSE FIVE PAGES NEEDED IT AND NONE DECLARED ONE. Measured on a rendered
+     * panel: `GET /favicon.ico` answered 404 on every load, because a page that declares no icon makes
+     * the browser guess at the origin root — a root no plugin owns. The mark is the logo kit's own
+     * (`logo/favicon/milpa-app-icon.svg`): the grain on the house's dark ground, which reads on either
+     * theme without a second file (greenhouse decisions/0286).
+     */
+    public const APP_ICON = 'milpa-app-icon.svg';
+
     public const WORDMARK = 'milpa-wordmark.svg';
 
     public const WORDMARK_LIGHT = 'milpa-wordmark-light.svg';
@@ -108,7 +120,8 @@ final class DesignTokens
         $dir = \dirname(__DIR__, 2) . '/resources/design/';
         $file = match (true) {
             $name === self::TOKENS, $name === self::FONTS,
-            $name === self::WORDMARK, $name === self::WORDMARK_LIGHT => $dir . $name,
+            $name === self::WORDMARK, $name === self::WORDMARK_LIGHT,
+            $name === self::APP_ICON => $dir . $name,
             \in_array($name, self::FACES, true) => $dir . 'fonts/' . $name,
             default => null,
         };
@@ -130,12 +143,29 @@ final class DesignTokens
             self::FONTS => '/' . self::FONTS,
             self::WORDMARK => '/' . self::WORDMARK,
             self::WORDMARK_LIGHT => '/' . self::WORDMARK_LIGHT,
+            self::APP_ICON => '/' . self::APP_ICON,
         ];
         foreach (self::FACES as $face) {
             $urls[$face] = '/fonts/' . $face;
         }
 
         return $urls;
+    }
+
+    /**
+     * The `<link>` a page declares its icon with — ONE tag, because five pages needed it.
+     *
+     * 🚨 THE POINT IS THAT THE PAGE DECLARES IT, not that a route exists. A browser only asks for
+     * `/favicon.ico` when the document says nothing, and that root belongs to no plugin — so five
+     * hosts writing five copies of this tag was the duplication, and five 404s was the symptom
+     * (greenhouse decisions/0286).
+     *
+     * `$href` is the host's: each serves this file from its own asset route, with its own cache policy.
+     */
+    public static function iconLink(string $href): string
+    {
+        return '<link rel="icon" type="' . self::contentType(self::APP_ICON) . '" href="'
+            . htmlspecialchars($href, ENT_QUOTES) . '">';
     }
 
     /**
