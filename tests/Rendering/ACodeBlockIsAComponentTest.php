@@ -264,6 +264,17 @@ final class ACodeBlockIsAComponentTest extends TestCase
             $css,
             'a <pre> that only inherits its font renders in the browser generic mono',
         );
+
+        // 🚨 AND ON THE `<code>` INSIDE IT, which is the half the first fix missed: `code
+        // { font-family: monospace }` is a UA rule too, so the child re-reset what the `<pre>` had
+        // just been given. That went unnoticed because the measurement read `.body` — the element
+        // that had been edited — while the `.text` inside it stayed generic mono. Measuring the
+        // element you edited confirms your edit, not its effect.
+        self::assertMatchesRegularExpression(
+            '/\bcode\s*\{[^}]*font-family:\s*inherit/',
+            $css,
+            'the <code> inside the <pre> has its own UA declaration to overcome',
+        );
     }
 
     /**
@@ -367,6 +378,29 @@ final class ACodeBlockIsAComponentTest extends TestCase
         self::assertStringNotContainsString('data-compact', $html);
         self::assertStringContainsString('class="chrome"', $html);
         self::assertMatchesRegularExpression('/\.copy\s*\{[^}]*opacity:\s*0/', self::styles(), 'on a block it still waits for hover');
+    }
+
+    /**
+     * Hover brightens the copy affordance; it does not draw a box around it.
+     *
+     * The border appeared on hover, and a box inside a block that already has a frame reads as a
+     * second frame. On a compact row it was worse: the button sits there at rest, so the box appeared
+     * around something the reader could already see. Colour alone says «reachable».
+     */
+    public function testHoverBrightensTheButtonWithoutDrawingABorder(): void
+    {
+        $css = self::styles();
+
+        self::assertMatchesRegularExpression('/\.copy:hover\s*\{[^}]*color:\s*var\(--tierra-50\)/', $css);
+        self::assertDoesNotMatchRegularExpression('/\.copy:hover\s*\{[^}]*border/', $css);
+        // And the transparent border that only reserved space for it is gone too, along with the
+        // transition that animated it.
+        self::assertDoesNotMatchRegularExpression('/\.copy\s*\{[^}]*border:\s*1px/', $css);
+        self::assertDoesNotMatchRegularExpression('/\.copy\s*\{[^}]*transition:[^;]*border/', $css);
+
+        // The keyboard ring is untouched: it is an outline, not a border, and it is the one thing here
+        // a person navigating without a mouse depends on.
+        self::assertMatchesRegularExpression('/\.copy:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--accent\)/', $css);
     }
 
     /** HTML only, and it refuses to paint a component that is not its own. */

@@ -152,6 +152,18 @@ code {
   padding: 0;
   border-radius: 0;
   color: inherit;
+
+  /* 🚨 THE FONT AGAIN, ONE LEVEL DOWN — AND THIS CORRECTS AN EARLIER FIX OF MINE.
+     `pre { font-family: monospace }` in the UA stylesheet was the first half of this, and declaring
+     the face on `.body` fixed the `<pre>`. It did not fix the command, because `code { font-family:
+     monospace }` is ALSO a UA rule, and the `<code>` inside the `<pre>` re-reset what the `<pre>`
+     had just been given.
+
+     I reported that one fixed by measuring `.body` — the element I had changed — and the `.text`
+     inside it was still generic mono the whole time. Measuring the element you edited confirms your
+     edit; it does not confirm the effect. The reader who spotted it thought the CHIPS were wrong,
+     because the chips were the half that had always been right. */
+  font-family: inherit;
 }
 
 .line { display: block; white-space: pre; }
@@ -174,21 +186,27 @@ code {
   /* NO `gap` HERE. A flex gap applies to an empty child too, so it was the reason the status region had
      to be `display: none` — the fix that silenced it. The spacing lives on `.copy-said:not(:empty)`. */
   padding: var(--space-1) var(--space-2);
-  border: 1px solid transparent;
+  /* No border at all, not a transparent one: the transparent border existed only to reserve the space
+     the hover border would take, and there is no hover border any more. */
+  border: 0;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--tierra-400);
   font: inherit;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+  transition: opacity 120ms ease-out, color 120ms ease-out;
 }
 
 :host(:hover) .copy,
 .copy:focus-visible,
 .copy[data-copied] { opacity: 1; }
 
-.copy:hover { color: var(--tierra-50); border-color: var(--border); }
+/* 🚨 HOVER BRIGHTENS, IT DOES NOT DRAW A BOX. The border used to appear on hover and the box reads as
+   a second frame inside a block that already has one — and on a compact row, where the button sits at
+   rest beside the command, it is a box appearing around something already visible. Colour alone says
+   «reachable» here; the box was saying «button» to a reader who could already see the button. */
+.copy:hover { color: var(--tierra-50); }
 
 .copy:focus-visible {
   outline: 2px solid var(--accent);
