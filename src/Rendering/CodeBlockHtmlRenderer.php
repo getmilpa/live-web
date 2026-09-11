@@ -73,6 +73,7 @@ final class CodeBlockHtmlRenderer implements ComponentRendererInterface
         $label = \is_string($state->meta['label'] ?? null) ? $state->meta['label'] : '';
         $prompt = \is_string($state->meta['prompt'] ?? null) ? $state->meta['prompt'] : '$';
         $copyable = ($state->meta['copy'] ?? true) !== false && $lines !== [];
+        $compact = ($state->meta['compact'] ?? false) === true;
 
         $rows = '';
         foreach ($lines as $line) {
@@ -100,13 +101,28 @@ final class CodeBlockHtmlRenderer implements ComponentRendererInterface
                 . '<span class="copy-said" role="status"></span></button>'
             : '';
 
-        $html = '<div ' . Html::attrs([
+        $attributes = [
             // NO CLASS ON THE ROOT. The stylesheet styles it through `:host`, which the scoper turns
             // into this very attribute selector — a class here would be a second name for one element,
             // and the version of this file that had one styled nothing at all.
             'data-milpa-component' => 'code-block',
             'data-milpa-component-id' => $state->componentId,
-        ]) . '>'
+        ];
+        if ($compact) {
+            $attributes['data-compact'] = 'true';
+        }
+
+        // COMPACT IS ONE ROW: the command and its button side by side, no strip above them. A chrome
+        // strip on a chip-sized block is the 47% overhead that made the strip opt-in in the first place.
+        if ($compact) {
+            return new RenderResult(
+                output: '<div ' . Html::attrs($attributes) . '>'
+                    . '<pre class="body"><code>' . $rows . '</code></pre>' . $button . '</div>',
+                state: $state,
+            );
+        }
+
+        $html = '<div ' . Html::attrs($attributes) . '>'
             // The strip exists when there is a label OR a button to hold; with neither it is 43px of
             // nothing. When only the button is there it floats at the block's top right, which is where
             // it already sat.

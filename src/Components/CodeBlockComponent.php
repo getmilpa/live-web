@@ -66,6 +66,7 @@ final class CodeBlockComponent implements ComponentDefinitionInterface
                 'label' => ['type' => 'string', 'required' => false, 'description' => 'What this block is, shown in a chrome strip above it; absent means no strip — set it only when the block is NOT a shell command (an output, a file, a response)'],
                 'prompt' => ['type' => 'string', 'default' => '$', 'description' => 'The glyph before each line; empty for content that is not a shell command'],
                 'copy' => ['type' => 'boolean', 'default' => true, 'description' => 'Whether to offer taking the command; false for output nobody would paste'],
+                'compact' => ['type' => 'boolean', 'default' => false, 'description' => 'One line, chip-sized, with the copy button inline — for a command listed beside others rather than presented on its own'],
             ],
             stateSchema: [
                 'lines' => ['type' => 'integer'],
@@ -99,6 +100,18 @@ final class CodeBlockComponent implements ComponentDefinitionInterface
                 'label' => \is_string($props['label'] ?? null) ? $props['label'] : '',
                 'prompt' => \is_string($props['prompt'] ?? null) ? $props['prompt'] : '$',
                 'copy' => ($props['copy'] ?? true) !== false,
+                // 🚨 COMPACT EXISTS SO A LISTED COMMAND STILL GETS THE COPY AFFORDANCE.
+                //
+                // The framework's welcome page listed four alternatives beside its one door and had to
+                // draw them as plain `<code>` chips, because a full block each would have given four
+                // framed terminals the same weight as the door. The cost was measured by the person
+                // reading it: «solo se puede copiar 1 comando, los otros se muestran pero no hay UX».
+                //
+                // The alternative was a hand-rolled copy button on the page, and that is the one thing
+                // this component exists to prevent — every hand-rolled one reads `textContent` and takes
+                // the `$` with it. So the affordance stays here and the PRESENTATION varies: same
+                // contract, same payload rule, one line instead of a frame.
+                'compact' => ($props['compact'] ?? false) === true,
             ],
         );
     }
