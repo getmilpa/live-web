@@ -329,6 +329,46 @@ final class ACodeBlockIsAComponentTest extends TestCase
         );
     }
 
+    /**
+     * 🚨 COMPACT IS ONE ROW, AND ITS BUTTON DOES NOT WAIT FOR HOVER.
+     *
+     * A command listed beside others could not be a full block — four framed terminals would carry the
+     * same weight as the one door they sit under — so the framework's welcome page drew them as plain
+     * `<code>` chips, and the cost was measured by the person reading it: «solo se puede copiar 1
+     * comando, los otros se muestran pero no hay UX». The alternative was a hand-rolled copy button on
+     * the page, which is the one thing this component exists to prevent.
+     *
+     * So the affordance stays here and only the presentation varies. And on a chip it is visible at
+     * rest: a full block is a big obvious target with a clear «over it», while a chip in a list gives
+     * a reader no reason to sweep four small rows hunting for what can be taken.
+     */
+    public function testCompactIsOneRowWithTheButtonInlineAndVisible(): void
+    {
+        $html = self::render(['command' => 'php bin/coa capabilities', 'prompt' => '', 'compact' => true]);
+
+        self::assertStringContainsString('data-compact="true"', $html);
+        self::assertStringNotContainsString('class="chrome"', $html, 'a strip on a chip is the 47% again');
+        self::assertStringContainsString('data-milpa-copy="php bin/coa capabilities"', $html, 'it can still be taken');
+        self::assertStringContainsString('aria-label="Copy php bin/coa capabilities"', $html);
+
+        $css = self::styles();
+        self::assertMatchesRegularExpression(
+            '/:host\(\[data-compact\]\) \.copy\s*\{[^}]*opacity:\s*1/',
+            $css,
+            'a chip has no obvious «over it», so its affordance cannot hide behind hover',
+        );
+    }
+
+    /** And the full block is unchanged: still framed, still hover-revealed. */
+    public function testTheFullBlockIsUntouchedByTheCompactVariant(): void
+    {
+        $html = self::render(['command' => 'php bin/coa house:start']);
+
+        self::assertStringNotContainsString('data-compact', $html);
+        self::assertStringContainsString('class="chrome"', $html);
+        self::assertMatchesRegularExpression('/\.copy\s*\{[^}]*opacity:\s*0/', self::styles(), 'on a block it still waits for hover');
+    }
+
     /** HTML only, and it refuses to paint a component that is not its own. */
     public function testItRendersHtmlAndOnlyItsOwnContract(): void
     {

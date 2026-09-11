@@ -45,6 +45,38 @@
   font-size: var(--text-sm);
 }
 
+/* ── COMPACT: ONE ROW, CHIP-SIZED ───────────────────────────────────────────────────────────────────
+   For a command listed beside others rather than presented on its own. The frame goes, the row stays
+   one line, and the button sits inline at its end.
+
+   🚨 ITS BUTTON DOES NOT WAIT FOR HOVER. On a full block the button appears on hover because the
+   block is a big obvious target with a clear «over it». A chip in a list has no such region — the
+   reader has no reason to sweep four small rows to discover that three of them can be taken. That
+   was the measured complaint about the page that listed them as plain chips: «solo se puede copiar 1
+   comando, los otros se muestran pero no hay UX». So here it is visible at rest and only BRIGHTENS
+   on hover. */
+:host([data-compact]) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding-right: var(--space-1);
+}
+
+:host([data-compact]) .body {
+  padding: var(--space-1) var(--space-2);
+  /* A command does not wrap in a chip either — it scrolls, the same rule the full body follows. */
+  min-width: 0;
+}
+
+:host([data-compact]) .copy {
+  opacity: 1;
+  padding: 0 var(--space-1);
+  flex: none;
+}
+
+:host([data-compact]) .copy:not(:hover):not(:focus-visible):not([data-copied]) { color: var(--tierra-500); }
+
 /* 🚨 A CHROME STRIP WITH NO LABEL COSTS NO HEIGHT. With the label gone, the strip's only content is
    the copy button, and a 43px band to hold a button that is invisible until hover is 43px of nothing.
    Floated into the block's own top-right corner it costs zero — and that is where it already appeared
