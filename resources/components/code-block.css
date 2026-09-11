@@ -23,7 +23,19 @@
  */
 
 :host {
-  border: 1px solid var(--border-subtle);
+  /* 🚨 `--border-strong` AND NOT `--border-subtle`, because the edge is the only thing that can carry
+     this. Measured on a host that paints `--surface`: the chrome strip came out at 1.000:1 against the
+     panel behind it — the identical colour — and the block's own border reached 1.469:1. So the top
+     47% of every block dissolved into the card it sat on, and what a reader saw was a dark stripe with
+     a floating label, not a framed terminal.
+
+     Fills cannot fix it: no pair in `--tierra-900`/`--tierra-950` exceeds 1.416:1, so in the dark half
+     of this palette a 1px line is the only device that reaches the 3:1 non-text floor.
+     `--border-strong` measures 3.13:1 against the strip and 4.43:1 against the block's ground;
+     `--border` reaches only 2.17:1 and is not enough. */
+  border: 1px solid var(--border-strong);
+  /* The positioning context a bare chrome strip floats in — see `.chrome[data-bare]`. */
+  position: relative;
   border-radius: var(--radius-md);
   overflow: hidden;
   /* The darkest ground the palette has, so the block reads as a surface of its own against both the
@@ -31,6 +43,20 @@
   background: var(--tierra-950);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+}
+
+/* 🚨 A CHROME STRIP WITH NO LABEL COSTS NO HEIGHT. With the label gone, the strip's only content is
+   the copy button, and a 43px band to hold a button that is invisible until hover is 43px of nothing.
+   Floated into the block's own top-right corner it costs zero — and that is where it already appeared
+   to be. `:host` carries the positioning context; it already clips with `overflow: hidden`, so the
+   button cannot escape the block. */
+.chrome[data-bare] {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-2);
+  padding: 0;
+  background: none;
+  border-bottom: 0;
 }
 
 /* The chrome: what this block is, and the way to take it. */
@@ -41,7 +67,9 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   background: var(--tierra-900);
-  border-bottom: 1px solid var(--border-subtle);
+  /* The same reason as the root's border: against a `--surface` host this line is the only edge the
+     strip has, and `--border-subtle` measured 1.469:1 across it. */
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .label {
@@ -54,6 +82,19 @@
 .body {
   margin: 0;
   padding: var(--space-3) var(--space-4);
+  /* 🚨 THE FONT IS RE-DECLARED HERE, AND THAT IS A FIX. `:host` sets `var(--font-mono)`, but this is a
+     `<pre>` and the UA stylesheet's `pre { font-family: monospace }` is a real declaration, which beats
+     an INHERITED value no matter how specific the ancestor's selector was. Measured in a browser: the
+     command computed to `monospace` — the browser's generic mono — while the block's root computed to
+     `"Space Mono", ui-monospace, monospace`. Every command this component has ever rendered was in the
+     wrong typeface, and the component that exists to typeset commands was the one getting it wrong.
+
+     This is the third time this component failed to defend itself and the first time the attacker was
+     the BROWSER: once the scoper turned its root rule into a descendant of itself, once a host page's
+     `code { background }` repainted the command, and now the UA sheet. A component inherits nothing it
+     has not declared. */
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   /* A command does not wrap: a wrapped shell line reads as two commands, and the second half looks
      like it could be run on its own. It scrolls in its own container instead. */
   overflow-x: auto;
@@ -98,7 +139,8 @@ code {
 .copy {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  /* NO `gap` HERE. A flex gap applies to an empty child too, so it was the reason the status region had
+     to be `display: none` — the fix that silenced it. The spacing lives on `.copy-said:not(:empty)`. */
   padding: var(--space-1) var(--space-2);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -125,8 +167,20 @@ code {
 
 .copy-icon { font-size: var(--text-base); line-height: 1; }
 
-/* Empty until the script says something, so the row does not jump when it does. */
-.copy-said:empty { display: none; }
+/* 🚨 THE LIVE REGION IS NEVER REMOVED FROM THE ACCESSIBILITY TREE.
+   It used to be `.copy-said:empty { display: none }`, which kept the row from jumping and cost the
+   whole announcement: `display: none` takes an element OUT of the accessibility tree, and a
+   `role="status"` that is not in the tree when its text arrives announces nothing. Every «copied» this
+   component has ever shown was silent — and so was the `press ⌘C` fallback, which is the one message a
+   user who cannot reach the clipboard actually needs.
+
+   The gap is moved onto the non-empty case instead, so an empty region still contributes no space. */
+.copy-said {
+  margin-left: 0;
+  transition: none;
+}
+
+.copy-said:not(:empty) { margin-left: var(--space-2); }
 
 @media (prefers-reduced-motion: reduce) {
   .copy { transition: none; }

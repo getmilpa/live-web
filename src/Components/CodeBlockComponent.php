@@ -63,7 +63,7 @@ final class CodeBlockComponent implements ComponentDefinitionInterface
             summary: 'A command shown the way a terminal shows it, with a copy affordance that needs no server.',
             propsSchema: [
                 'command' => ['type' => 'string', 'required' => true, 'description' => 'The command itself; newlines are separate lines, each with its own prompt'],
-                'label' => ['type' => 'string', 'required' => false, 'description' => 'What this block is, shown in its chrome — «terminal» when absent'],
+                'label' => ['type' => 'string', 'required' => false, 'description' => 'What this block is, shown in a chrome strip above it; absent means no strip — set it only when the block is NOT a shell command (an output, a file, a response)'],
                 'prompt' => ['type' => 'string', 'default' => '$', 'description' => 'The glyph before each line; empty for content that is not a shell command'],
                 'copy' => ['type' => 'boolean', 'default' => true, 'description' => 'Whether to offer taking the command; false for output nobody would paste'],
             ],
@@ -92,7 +92,11 @@ final class CodeBlockComponent implements ComponentDefinitionInterface
             '1',
             ['lines' => \count(self::lines($props['command'] ?? ''))],
             [
-                'label' => \is_string($props['label'] ?? null) && $props['label'] !== '' ? $props['label'] : 'terminal',
+                // ABSENT BY DEFAULT, and absent means no chrome strip at all. A label is for a block
+                // that is something OTHER than a shell command — an output, a file, a response — which
+                // is when it earns the 47% of the block's height it costs. Eight blocks all saying
+                // «terminal» was measured at 344px of a 2263px page teaching nothing after the first.
+                'label' => \is_string($props['label'] ?? null) ? $props['label'] : '',
                 'prompt' => \is_string($props['prompt'] ?? null) ? $props['prompt'] : '$',
                 'copy' => ($props['copy'] ?? true) !== false,
             ],
