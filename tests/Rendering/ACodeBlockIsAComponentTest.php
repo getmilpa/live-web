@@ -173,6 +173,38 @@ final class ACodeBlockIsAComponentTest extends TestCase
         self::assertStringNotContainsString('class="milpa-code"', self::render(['command' => 'php bin/coa serve']));
     }
 
+    /**
+     * 🚨 THE `<code>` IS A BLOCK — the control for a defect no assertion about markup could see.
+     *
+     * `<code>` is `display: inline` by default and it holds `.line`, which is a block. An inline box
+     * wrapping a block gets anonymous block boxes before and after, so every block rendered two EMPTY
+     * ROWS — one above the command, one below. Nine green assertions about this renderer's markup had
+     * nothing to say about it; a browser did, measuring the `<code>` at 69.97px where its single line
+     * is 22.4px. Three line boxes for one line.
+     *
+     * This asserts the DECLARATION, which is all PHP can reach. The measurement is in the acta.
+     */
+    public function testTheCodeElementIsABlockSoThereAreNoEmptyRows(): void
+    {
+        $styles = CodeBlockComponent::contract()->presentation?->styles;
+        self::assertIsString($styles);
+
+        $css = (string) preg_replace('~/\*.*?\*/~s', '', (string) file_get_contents($styles));
+
+        self::assertMatchesRegularExpression(
+            '/\bcode\s*\{[^}]*display:\s*block/',
+            $css,
+            'an inline <code> around a block .line renders an empty row above and below the command',
+        );
+
+        // And it declares the paint it depends on, because a host page's `code { background: … }`
+        // reaches inside a component: scoping keeps two COMPONENTS apart, not a document's element
+        // selectors. Measured on the welcome page as a chip behind the command that nothing here drew.
+        foreach (['background: none', 'padding: 0', 'border-radius: 0'] as $declared) {
+            self::assertStringContainsString($declared, $css, 'a host rule must not be able to repaint the block');
+        }
+    }
+
     /** HTML only, and it refuses to paint a component that is not its own. */
     public function testItRendersHtmlAndOnlyItsOwnContract(): void
     {
