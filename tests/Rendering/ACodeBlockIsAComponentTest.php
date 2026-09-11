@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace Milpa\Live\Tests\Rendering;
 
+use Milpa\Live\Assets\ComponentAssetOrchestrator;
 use Milpa\Live\Components\CodeBlockComponent;
 use Milpa\Live\Rendering\CodeBlockHtmlRenderer;
 use Milpa\Live\ValueObjects\ComponentContext;
@@ -53,9 +54,9 @@ final class ACodeBlockIsAComponentTest extends TestCase
         $html = self::render(['command' => 'php bin/coa house:start', 'label' => 'terminal']);
 
         self::assertStringContainsString('data-milpa-component="code-block"', $html);
-        self::assertStringContainsString('milpa-code__chrome', $html);
+        self::assertStringContainsString('chrome', $html);
         self::assertStringContainsString('>terminal<', $html, 'the block says what it is');
-        self::assertStringContainsString('milpa-code__prompt', $html);
+        self::assertStringContainsString('prompt', $html);
         self::assertStringContainsString('php bin/coa house:start', $html);
     }
 
@@ -64,8 +65,8 @@ final class ACodeBlockIsAComponentTest extends TestCase
     {
         $html = self::render(['command' => "php bin/coa list\n\nphp bin/coa plugins:list\n"]);
 
-        self::assertSame(2, substr_count($html, 'milpa-code__line'), 'two commands, two rows');
-        self::assertSame(2, substr_count($html, 'milpa-code__prompt'), 'each with its own prompt');
+        self::assertSame(2, substr_count($html, 'line'), 'two commands, two rows');
+        self::assertSame(2, substr_count($html, 'prompt'), 'each with its own prompt');
     }
 
     /**
@@ -92,7 +93,7 @@ final class ACodeBlockIsAComponentTest extends TestCase
     {
         $html = self::render(['command' => 'https://milpa.lat', 'prompt' => '']);
 
-        self::assertStringNotContainsString('milpa-code__prompt', $html);
+        self::assertStringNotContainsString('prompt', $html);
         self::assertStringContainsString('https://milpa.lat', $html);
     }
 
@@ -101,7 +102,7 @@ final class ACodeBlockIsAComponentTest extends TestCase
     {
         $html = self::render(['command' => 'ok: sí', 'copy' => false]);
 
-        self::assertStringNotContainsString('milpa-code__copy', $html);
+        self::assertStringNotContainsString('copy', $html);
         self::assertStringNotContainsString('data-milpa-copy', $html);
     }
 
@@ -112,8 +113,8 @@ final class ACodeBlockIsAComponentTest extends TestCase
         $state = $component->mount(['command' => ''], new ComponentContext(componentId: 'cb1'));
 
         self::assertSame(0, $state->data['lines']);
-        self::assertStringNotContainsString('milpa-code__line', self::render(['command' => '']));
-        self::assertStringNotContainsString('milpa-code__copy', self::render(['command' => '']), 'nothing to take');
+        self::assertStringNotContainsString('line', self::render(['command' => '']));
+        self::assertStringNotContainsString('copy', self::render(['command' => '']), 'nothing to take');
     }
 
     /**
@@ -127,7 +128,7 @@ final class ACodeBlockIsAComponentTest extends TestCase
     {
         $html = self::render(['command' => 'php bin/coa serve']);
 
-        self::assertStringContainsString('<button type="button" class="milpa-code__copy"', $html);
+        self::assertStringContainsString('<button type="button" class="copy"', $html);
         self::assertStringContainsString('aria-label="Copy terminal"', $html, 'reachable without sight of the icon');
 
         $presentation = CodeBlockComponent::contract()->presentation;
@@ -141,6 +142,35 @@ final class ACodeBlockIsAComponentTest extends TestCase
         self::assertSame(0, preg_match('/#[0-9a-fA-F]{3,6}\b/', $css), 'not one colour of its own: every value is a design token');
         self::assertStringContainsString(':focus-visible', $css, 'the copy affordance is reachable by keyboard, not only on hover');
         self::assertStringContainsString('prefers-reduced-motion', $css);
+    }
+
+    /**
+     * 🚨 THE ROOT RULE SURVIVES THE SCOPER — the control for a bug that shipped.
+     *
+     * `CssScoper` prefixes every top-level selector with the component root, so the first version of
+     * this stylesheet, which styled the block as `.milpa-code`, came out as
+     * `[data-milpa-component="code-block"] .milpa-code`: a descendant of a root that carried both, so
+     * the block's border, radius, ground and monospaced font applied to nothing. It rendered, it read
+     * as declared, and it was inert. Reading the file could not see it; running the scoper could.
+     */
+    public function testTheBlocksOwnRuleStillMatchesTheBlockAfterScoping(): void
+    {
+        // COMMENTS OUT FIRST, and that is not tidiness: the scoper copies them verbatim, and the note
+        // at the top of the stylesheet QUOTES the broken selector to explain it. The first run of this
+        // test failed on its own prose — the claim here is about selectors, so prose cannot answer it.
+        $css = (string) preg_replace(
+            '~/\*.*?\*/~s',
+            '',
+            (new ComponentAssetOrchestrator())->collect([CodeBlockComponent::contract()])->styles,
+        );
+        $root = '[data-milpa-component="code-block"]';
+
+        self::assertStringContainsString($root . ' {', $css, 'the block itself is styled, not only its parts');
+        self::assertStringNotContainsString($root . ' .milpa-code', $css, 'and never as a descendant of itself');
+
+        // The renderer must not put a class on the root either: `:host` IS the root, and a class
+        // there is a second name for one element that the stylesheet cannot reach.
+        self::assertStringNotContainsString('class="milpa-code"', self::render(['command' => 'php bin/coa serve']));
     }
 
     /** HTML only, and it refuses to paint a component that is not its own. */

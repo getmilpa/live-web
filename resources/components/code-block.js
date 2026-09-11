@@ -23,7 +23,7 @@
   /* Says what happened, on the button, for two seconds. Then it goes back to being an icon: a status
      that stays is a status nobody reads the second time. */
   const say = (button, text) => {
-    const said = button.querySelector('.milpa-code__copy-said');
+    const said = button.querySelector('.copy-said');
     if (said) { said.textContent = text; }
     button.setAttribute('data-copied', '');
     window.setTimeout(() => {
@@ -54,7 +54,11 @@
   };
 
   document.addEventListener('click', async (event) => {
-    const button = event.target.closest('.milpa-code__copy');
+    // MATCHED BY THE PAYLOAD ATTRIBUTE, never by `.copy`. This listener is on `document`, and `.copy`
+    // is a class any page or any other component may already use — the scoper keeps two strangers'
+    // CSS apart and does nothing for a delegated selector. `data-milpa-copy` is this component's own
+    // and is the very thing being read, so the match and the work cannot disagree.
+    const button = event.target.closest('[data-milpa-copy]');
     if (!button) { return; }
     const payload = payloadOf(button);
     if (payload === '') { return; }

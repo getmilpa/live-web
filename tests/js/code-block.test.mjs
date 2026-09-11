@@ -25,8 +25,10 @@ function button(payload) {
     getAttribute: (n) => (n in attrs ? attrs[n] : null),
     setAttribute: (n, v) => { attrs[n] = v; },
     removeAttribute: (n) => { delete attrs[n]; },
-    querySelector: (sel) => (sel === '.milpa-code__copy-said' ? said : null),
-    closest: (sel) => (sel === '.milpa-code__copy' ? el : null),
+    querySelector: (sel) => (sel === '.copy-said' ? said : null),
+    // Matched by the PAYLOAD ATTRIBUTE, the way the script matches it: the listener is on `document`,
+    // where a class selector like `.copy` would answer for anybody else's button too.
+    closest: (sel) => (sel === '[data-milpa-copy]' && 'data-milpa-copy' in attrs ? el : null),
     attrs,
     said,
   };

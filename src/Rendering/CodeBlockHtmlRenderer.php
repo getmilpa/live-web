@@ -70,9 +70,9 @@ final class CodeBlockHtmlRenderer implements ComponentRendererInterface
 
         $rows = '';
         foreach ($lines as $line) {
-            $rows .= '<span class="milpa-code__line">'
-                . ($prompt !== '' ? '<span class="milpa-code__prompt" aria-hidden="true">' . Html::escape($prompt) . '</span>' : '')
-                . '<span class="milpa-code__text">' . Html::escape($line) . '</span></span>';
+            $rows .= '<span class="line">'
+                . ($prompt !== '' ? '<span class="prompt" aria-hidden="true">' . Html::escape($prompt) . '</span>' : '')
+                . '<span class="text">' . Html::escape($line) . '</span></span>';
         }
 
         // The clipboard payload is the COMMANDS, never the prompt. A `$` pasted into a shell is the one
@@ -81,19 +81,21 @@ final class CodeBlockHtmlRenderer implements ComponentRendererInterface
         $payload = implode("\n", $lines);
 
         $button = $copyable
-            ? '<button type="button" class="milpa-code__copy" data-milpa-copy="' . Html::escape($payload) . '"'
+            ? '<button type="button" class="copy" data-milpa-copy="' . Html::escape($payload) . '"'
                 . ' aria-label="' . Html::escape('Copy ' . $label) . '">'
-                . '<span class="milpa-code__copy-icon" aria-hidden="true">⧉</span>'
-                . '<span class="milpa-code__copy-said" role="status"></span></button>'
+                . '<span class="copy-icon" aria-hidden="true">⧉</span>'
+                . '<span class="copy-said" role="status"></span></button>'
             : '';
 
         $html = '<div ' . Html::attrs([
-            'class' => 'milpa-code',
+            // NO CLASS ON THE ROOT. The stylesheet styles it through `:host`, which the scoper turns
+            // into this very attribute selector — a class here would be a second name for one element,
+            // and the version of this file that had one styled nothing at all.
             'data-milpa-component' => 'code-block',
             'data-milpa-component-id' => $state->componentId,
         ]) . '>'
-            . '<div class="milpa-code__chrome"><span class="milpa-code__label">' . Html::escape($label) . '</span>' . $button . '</div>'
-            . '<pre class="milpa-code__body"><code>' . $rows . '</code></pre>'
+            . '<div class="chrome"><span class="label">' . Html::escape($label) . '</span>' . $button . '</div>'
+            . '<pre class="body"><code>' . $rows . '</code></pre>'
             . '</div>';
 
         return new RenderResult(output: $html, state: $state);
