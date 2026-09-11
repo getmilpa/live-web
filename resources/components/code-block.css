@@ -1,0 +1,99 @@
+/* code-block — a command shown the way a terminal shows it.
+ *
+ * EVERY VALUE IS A TOKEN. The framework's welcome page hand-picked six hex values to look like this and
+ * two of them rendered invisible (1.07:1 and 1.02:1, measured in a browser). A terminal look invented
+ * per page is the defect; a primitive that owns it is the fix (greenhouse decisions/0299).
+ *
+ * What says «terminal» here is STRUCTURE, not new colour: a chrome strip that names the block, a prompt
+ * glyph before each line, and a monospaced line that scrolls instead of wrapping. A reader decides what
+ * a block IS before reading a character of it.
+ */
+
+.milpa-code {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  /* The darkest ground the palette has, so the block reads as a surface of its own against both the
+     light and the dark theme rather than as a tint of whatever is behind it. */
+  background: var(--tierra-950);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* The chrome: what this block is, and the way to take it. */
+.milpa-code__chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--tierra-900);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.milpa-code__label {
+  color: var(--tierra-400);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.milpa-code__body {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  /* A command does not wrap: a wrapped shell line reads as two commands, and the second half looks
+     like it could be run on its own. It scrolls in its own container instead. */
+  overflow-x: auto;
+  color: var(--tierra-50);
+}
+
+.milpa-code__line { display: block; white-space: pre; }
+
+/* The prompt is decoration and it is `aria-hidden`: a screen reader announcing «dollar sign» before
+   every line is noise, and the clipboard payload never contains it either. */
+.milpa-code__prompt {
+  color: var(--accent);
+  margin-right: var(--space-2);
+  user-select: none;
+}
+
+.milpa-code__text { color: var(--tierra-50); }
+
+/* THE BUTTON IS ALWAYS IN THE MARKUP — revealed on hover, and never hidden from the keyboard. A copy
+   affordance that only exists on :hover cannot be reached by anyone who does not use a mouse. */
+.milpa-code__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--tierra-400);
+  font: inherit;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.milpa-code:hover .milpa-code__copy,
+.milpa-code__copy:focus-visible,
+.milpa-code__copy[data-copied] { opacity: 1; }
+
+.milpa-code__copy:hover { color: var(--tierra-50); border-color: var(--border); }
+
+.milpa-code__copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.milpa-code__copy[data-copied] { color: var(--accent); }
+
+.milpa-code__copy-icon { font-size: var(--text-base); line-height: 1; }
+
+/* Empty until the script says something, so the row does not jump when it does. */
+.milpa-code__copy-said:empty { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .milpa-code__copy { transition: none; }
+}
