@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/getmilpa/live-web/compare/v0.26.1...v0.27.0) (2026-09-11)
+
+
+### Features
+
+* **design:** the canon is called, not typed — one prefix in, the whole URL set out ([#73](https://github.com/getmilpa/live-web/issues/73)) ([9b88ff8](https://github.com/getmilpa/live-web/commit/9b88ff8b5fdbf66774fe4d047ed4e93ed19c3150))
+
 ## [0.26.1](https://github.com/getmilpa/live-web/compare/v0.26.0...v0.26.1) (2026-09-11)
 
 
