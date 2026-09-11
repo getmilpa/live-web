@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.25.0](https://github.com/getmilpa/live-web/compare/v0.24.0...v0.25.0) (2026-09-11)
+
+
+### Features
+
+* **components:** a code block is a component, and this package declares its own ([#62](https://github.com/getmilpa/live-web/issues/62)) ([2372e00](https://github.com/getmilpa/live-web/commit/2372e0066853213b8a84f68670e27e98dddda183))
+
+
+### Bug Fixes
+
+* **code-block:** the block's own rule was scoped into a descendant of itself ([#64](https://github.com/getmilpa/live-web/issues/64)) ([8b22bfc](https://github.com/getmilpa/live-web/commit/8b22bfc7ea79d2ddedbe7ac5747788f52f30c65b))
+
 ## [0.24.0](https://github.com/getmilpa/live-web/compare/v0.23.0...v0.24.0) (2026-09-10)
 
 
