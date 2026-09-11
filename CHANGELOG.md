@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.1](https://github.com/getmilpa/live-web/compare/v0.26.0...v0.26.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **code-block:** hover brightens without drawing a box, and the command is finally in the mono face ([#71](https://github.com/getmilpa/live-web/issues/71)) ([11b5183](https://github.com/getmilpa/live-web/commit/11b51835890764d9749b7d4451c2cddaabdb6072))
+
 ## [0.26.0](https://github.com/getmilpa/live-web/compare/v0.25.2...v0.26.0) (2026-09-11)
 
 
