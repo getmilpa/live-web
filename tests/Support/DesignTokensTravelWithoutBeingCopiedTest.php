@@ -185,4 +185,51 @@ final class DesignTokensTravelWithoutBeingCopiedTest extends TestCase
         self::assertSame('<link rel="icon" type="image/svg+xml" href="/panel/assets/milpa-app-icon.svg">', $link);
         self::assertStringContainsString('&quot;', DesignTokens::iconLink('a"b'), 'the href is escaped: a host builds it from its own configured route');
     }
+
+    /**
+     * 🚨 THE CANON IS CALLED, NOT TYPED — one prefix in, the whole set out.
+     *
+     * Measured before this existed: nine sites across three packages spelled these names into route
+     * declarations and `<link>` tags by hand, while `defaultUrls()` — which exists for exactly that —
+     * was called by nothing in any `src/`. Only its own test called it. The canon was written and
+     * never wired, which is how a fourth URL prefix got invented in one afternoon without its author
+     * seeing the other three (greenhouse decisions/0308).
+     *
+     * Each host still serves them itself: that is a decision written where it is made, and a plugin
+     * whose pages work the moment it is installed cannot depend on another plugin's routes. What this
+     * replaces is the typing.
+     */
+    public function testOnePrefixInAndTheWholeSetComesOut(): void
+    {
+        $urls = DesignTokens::urls('/webauthn');
+
+        self::assertSame('/webauthn/milpa-tokens.css', $urls[DesignTokens::TOKENS]);
+        self::assertSame('/webauthn/milpa-fonts.css', $urls[DesignTokens::FONTS]);
+        self::assertSame('/webauthn/milpa-wordmark.svg', $urls[DesignTokens::WORDMARK]);
+        self::assertSame('/webauthn/milpa-app-icon.svg', $urls[DesignTokens::APP_ICON]);
+
+        // 🚨 THE `fonts/` SEGMENT SURVIVES THE PREFIX. `milpa-fonts.css` names its faces RELATIVELY,
+        // so a host that flattens them serves a stylesheet whose every `src` is a 404 — a defect that
+        // shows up as missing type rather than as an error. It is the reason a shape authority is
+        // worth having at all.
+        foreach (array_keys($urls) as $name) {
+            if (str_ends_with($name, '.woff2')) {
+                self::assertSame('/webauthn/fonts/' . $name, $urls[$name]);
+            }
+        }
+        self::assertNotSame([], array_filter(array_keys($urls), static fn (string $n): bool => str_ends_with($n, '.woff2')), 'a set with no faces would make the assertion above vacuous');
+    }
+
+    /** A trailing slash in the host's prefix does not double up. */
+    public function testATrailingSlashDoesNotDoubleUp(): void
+    {
+        self::assertSame('/design/milpa-tokens.css', DesignTokens::urls('/design/')[DesignTokens::TOKENS]);
+    }
+
+    /** And the root is what an empty prefix means — the published `defaultUrls()` is one call deep now. */
+    public function testTheRootSetIsTheSameShapeAsAnyOther(): void
+    {
+        self::assertSame(DesignTokens::urls(''), DesignTokens::defaultUrls());
+        self::assertSame('/milpa-tokens.css', DesignTokens::defaultUrls()[DesignTokens::TOKENS]);
+    }
 }

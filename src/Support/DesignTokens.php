@@ -130,26 +130,59 @@ final class DesignTokens
     }
 
     /**
-     * The URLs a host serves them at by default — the faces keep the `fonts/` segment the stylesheet
-     * asks for, because `milpa-fonts.css` names them relatively and a host that flattens the path
-     * serves a stylesheet whose every `src` is a 404.
+     * THE URLS ONE HOST SERVES THESE AT, UNDER ITS OWN PREFIX — the canon, called instead of typed.
+     *
+     * 🚨 EACH HOST STILL SERVES THEM ITSELF. That is a decision, written where it is made
+     * ({@see iconLink()}: «each serves this file from its own asset route, with its own cache
+     * policy»), and this method does not touch it: a plugin whose pages work the moment it is
+     * installed cannot depend on another plugin's routes being mounted. What it replaces is the
+     * TYPING.
+     *
+     * Measured before writing it: nine sites across three packages spelled these names into route
+     * declarations and `<link>` tags by hand — five routes in `milpa/app-runtime`'s passkey plugin,
+     * three `<link>`s in the framework's welcome page, a wordmark `<img>` in the gate renderer — while
+     * `defaultUrls()`, which exists for exactly this, was called by nothing in any `src/`. Only its
+     * own test called it. The canon was written and never wired, which is how a fourth prefix
+     * (`/design/`) got invented in one afternoon without its author seeing the other three
+     * (greenhouse decisions/0308).
+     *
+     * The `fonts/` segment is the reason a shape authority is worth having at all: `milpa-fonts.css`
+     * names its faces RELATIVELY, so a host that flattens them serves a stylesheet whose every `src`
+     * is a 404 — a defect that shows up as missing type, not as an error.
+     *
+     * @param string $prefix the host's own mount point, with no trailing slash (`''` serves at the root)
+     *
+     * @return array<string, string> name => URL
+     */
+    public static function urls(string $prefix = ''): array
+    {
+        $at = rtrim($prefix, '/');
+
+        $urls = [
+            self::TOKENS => $at . '/' . self::TOKENS,
+            self::FONTS => $at . '/' . self::FONTS,
+            self::WORDMARK => $at . '/' . self::WORDMARK,
+            self::WORDMARK_LIGHT => $at . '/' . self::WORDMARK_LIGHT,
+            self::APP_ICON => $at . '/' . self::APP_ICON,
+        ];
+        foreach (self::FACES as $face) {
+            $urls[$face] = $at . '/fonts/' . $face;
+        }
+
+        return $urls;
+    }
+
+    /**
+     * The same set at the root — {@see urls()} with no prefix.
+     *
+     * Kept because it is published API and two tests name it; it is now one call deep so the two can
+     * never disagree about the shape.
      *
      * @return array<string, string> name => URL
      */
     public static function defaultUrls(): array
     {
-        $urls = [
-            self::TOKENS => '/' . self::TOKENS,
-            self::FONTS => '/' . self::FONTS,
-            self::WORDMARK => '/' . self::WORDMARK,
-            self::WORDMARK_LIGHT => '/' . self::WORDMARK_LIGHT,
-            self::APP_ICON => '/' . self::APP_ICON,
-        ];
-        foreach (self::FACES as $face) {
-            $urls[$face] = '/fonts/' . $face;
-        }
-
-        return $urls;
+        return self::urls();
     }
 
     /**
