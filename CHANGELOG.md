@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/getmilpa/live-web/compare/v0.25.2...v0.26.0) (2026-09-11)
+
+
+### Features
+
+* **code-block:** a compact variant, so a listed command still offers to be taken ([#69](https://github.com/getmilpa/live-web/issues/69)) ([0bb3b25](https://github.com/getmilpa/live-web/commit/0bb3b2553b86eb16da482305e3ad57dda467ebce))
+
 ## [0.25.2](https://github.com/getmilpa/live-web/compare/v0.25.1...v0.25.2) (2026-09-11)
 
 
