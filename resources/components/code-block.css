@@ -9,7 +9,20 @@
  * a block IS before reading a character of it.
  */
 
-.milpa-code {
+/*
+ * 🚨 SELECTORS FOLLOW THE SCOPER, and the root is `:host`.
+ *
+ * `CssScoper` prefixes every top-level selector with the component root, so a rule written as
+ * `.milpa-code` comes out as `[data-milpa-component="code-block"] .milpa-code` — a DESCENDANT of a
+ * root that carries both, which matches nothing. This stylesheet shipped that way for one commit and
+ * the block's border, radius, ground and mono font were all dead: rendered, declared, inert. Caught
+ * by running the real scoper over the file, not by reading it.
+ *
+ * So: `:host` for the block itself, and bare names for its parts — a component never repeats its own
+ * name in a selector, because the scoper is what keeps two strangers' `.line` apart.
+ */
+
+:host {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -21,7 +34,7 @@
 }
 
 /* The chrome: what this block is, and the way to take it. */
-.milpa-code__chrome {
+.chrome {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -31,14 +44,14 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.milpa-code__label {
+.label {
   color: var(--tierra-400);
   font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
-.milpa-code__body {
+.body {
   margin: 0;
   padding: var(--space-3) var(--space-4);
   /* A command does not wrap: a wrapped shell line reads as two commands, and the second half looks
@@ -47,21 +60,21 @@
   color: var(--tierra-50);
 }
 
-.milpa-code__line { display: block; white-space: pre; }
+.line { display: block; white-space: pre; }
 
 /* The prompt is decoration and it is `aria-hidden`: a screen reader announcing «dollar sign» before
    every line is noise, and the clipboard payload never contains it either. */
-.milpa-code__prompt {
+.prompt {
   color: var(--accent);
   margin-right: var(--space-2);
   user-select: none;
 }
 
-.milpa-code__text { color: var(--tierra-50); }
+.text { color: var(--tierra-50); }
 
 /* THE BUTTON IS ALWAYS IN THE MARKUP — revealed on hover, and never hidden from the keyboard. A copy
    affordance that only exists on :hover cannot be reached by anyone who does not use a mouse. */
-.milpa-code__copy {
+.copy {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -76,24 +89,24 @@
   transition: opacity 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
 }
 
-.milpa-code:hover .milpa-code__copy,
-.milpa-code__copy:focus-visible,
-.milpa-code__copy[data-copied] { opacity: 1; }
+:host(:hover) .copy,
+.copy:focus-visible,
+.copy[data-copied] { opacity: 1; }
 
-.milpa-code__copy:hover { color: var(--tierra-50); border-color: var(--border); }
+.copy:hover { color: var(--tierra-50); border-color: var(--border); }
 
-.milpa-code__copy:focus-visible {
+.copy:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.milpa-code__copy[data-copied] { color: var(--accent); }
+.copy[data-copied] { color: var(--accent); }
 
-.milpa-code__copy-icon { font-size: var(--text-base); line-height: 1; }
+.copy-icon { font-size: var(--text-base); line-height: 1; }
 
 /* Empty until the script says something, so the row does not jump when it does. */
-.milpa-code__copy-said:empty { display: none; }
+.copy-said:empty { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .milpa-code__copy { transition: none; }
+  .copy { transition: none; }
 }
