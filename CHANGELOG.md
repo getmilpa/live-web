@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.2](https://github.com/getmilpa/live-web/compare/v0.25.1...v0.25.2) (2026-09-11)
+
+
+### Bug Fixes
+
+* **code-block:** it typesets, it keeps an edge, and it announces — none of which it did ([#67](https://github.com/getmilpa/live-web/issues/67)) ([077bee0](https://github.com/getmilpa/live-web/commit/077bee0f045657a7683373d1215a186f019d9915))
+
 ## [0.25.1](https://github.com/getmilpa/live-web/compare/v0.25.0...v0.25.1) (2026-09-11)
 
 
