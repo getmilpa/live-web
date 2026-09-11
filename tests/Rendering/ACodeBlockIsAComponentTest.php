@@ -34,6 +34,14 @@ use PHPUnit\Framework\TestCase;
 #[CoversClass(CodeBlockHtmlRenderer::class)]
 final class ACodeBlockIsAComponentTest extends TestCase
 {
+    /** The stylesheet the contract names, with comments stripped — prose cannot answer for a selector. */
+    private static function styles(): string
+    {
+        $path = CodeBlockComponent::contract()->presentation?->styles;
+
+        return (string) preg_replace('~/\*.*?\*/~s', '', (string) file_get_contents((string) $path));
+    }
+
     /** @param array<string, mixed> $props */
     private static function render(array $props): string
     {
@@ -48,16 +56,45 @@ final class ACodeBlockIsAComponentTest extends TestCase
         ))->output;
     }
 
-    /** The chrome, the prompt and the line — the three things that say «terminal» without a colour. */
-    public function testItPaintsChromePromptedLinesAndTheCommand(): void
+    /** The prompt and the line — what says «terminal» without a colour and without a word. */
+    public function testItPaintsPromptedLinesAndTheCommand(): void
     {
-        $html = self::render(['command' => 'php bin/coa house:start', 'label' => 'terminal']);
+        $html = self::render(['command' => 'php bin/coa house:start']);
 
         self::assertStringContainsString('data-milpa-component="code-block"', $html);
-        self::assertStringContainsString('chrome', $html);
-        self::assertStringContainsString('>terminal<', $html, 'the block says what it is');
-        self::assertStringContainsString('prompt', $html);
+        self::assertStringContainsString('class="prompt"', $html);
         self::assertStringContainsString('php bin/coa house:start', $html);
+    }
+
+    /**
+     * 🚨 A LABEL IS OPT-IN, AND WITHOUT ONE THE STRIP COSTS NOTHING.
+     *
+     * Measured on the framework's welcome page: eight blocks all labelled the identical word
+     * «terminal», 43px of a 91px block — 47% — and 344px of a 2263px scroll spent on a word that
+     * teaches nothing after the first one. A label is for a block that is something OTHER than a shell
+     * command, which is when it earns that height. With none, the strip holds only the copy button and
+     * is floated into the block's own corner, so it costs zero.
+     */
+    public function testALabelIsOptInAndABareStripCostsNoHeight(): void
+    {
+        $bare = self::render(['command' => 'php bin/coa serve']);
+
+        self::assertStringNotContainsString('class="label"', $bare, 'no word nobody asked for');
+        self::assertStringContainsString('data-bare="true"', $bare, 'the strip says it holds only the button');
+
+        $named = self::render(['command' => 'ok: sí', 'label' => 'output', 'prompt' => '']);
+
+        self::assertStringContainsString('>output<', $named, 'a block that is NOT a command says so');
+        self::assertStringNotContainsString('data-bare', $named);
+    }
+
+    /** With neither a label nor a button there is no strip at all, rather than an empty one. */
+    public function testWithNeitherLabelNorButtonThereIsNoStrip(): void
+    {
+        $html = self::render(['command' => 'ok: sí', 'copy' => false]);
+
+        self::assertStringNotContainsString('class="chrome"', $html);
+        self::assertStringNotContainsString('data-bare', $html);
     }
 
     /** Each line gets its own prompt, and blank lines are not rows. */
@@ -129,7 +166,7 @@ final class ACodeBlockIsAComponentTest extends TestCase
         $html = self::render(['command' => 'php bin/coa serve']);
 
         self::assertStringContainsString('<button type="button" class="copy"', $html);
-        self::assertStringContainsString('aria-label="Copy terminal"', $html, 'reachable without sight of the icon');
+        self::assertStringContainsString('aria-label="Copy php bin/coa serve"', $html, 'reachable without sight of the icon');
 
         $presentation = CodeBlockComponent::contract()->presentation;
         self::assertNotNull($presentation);
@@ -203,6 +240,93 @@ final class ACodeBlockIsAComponentTest extends TestCase
         foreach (['background: none', 'padding: 0', 'border-radius: 0'] as $declared) {
             self::assertStringContainsString($declared, $css, 'a host rule must not be able to repaint the block');
         }
+    }
+
+    /**
+     * 🚨 THE `<pre>` RE-DECLARES THE MONO FACE, BECAUSE THE UA STYLESHEET BEATS INHERITANCE.
+     *
+     * `:host` sets `var(--font-mono)`, but the body is a `<pre>` and `pre { font-family: monospace }`
+     * in the browser's own stylesheet is a real declaration — which wins over an INHERITED value no
+     * matter how specific the ancestor's selector was. Measured in a browser: the command computed to
+     * `monospace`, the browser's generic mono, while the block's root computed to Space Mono. Every
+     * command this component ever rendered was in the wrong typeface, and it is the component whose
+     * whole job is typesetting commands.
+     *
+     * Third time this component failed to defend itself, and the first time the attacker was the
+     * BROWSER rather than the scoper or a host page. A component inherits nothing it has not declared.
+     */
+    public function testTheBodyDeclaresTheMonoFaceItCannotInherit(): void
+    {
+        $css = self::styles();
+
+        self::assertMatchesRegularExpression(
+            '/\.body\s*\{[^}]*font-family:\s*var\(--font-mono\)/',
+            $css,
+            'a <pre> that only inherits its font renders in the browser generic mono',
+        );
+    }
+
+    /**
+     * 🚨 THE EDGES ARE DRAWN WITH A TOKEN THAT CAN CARRY THEM ON A HOST'S OWN SURFACE.
+     *
+     * Measured on a host painting `--surface`: the chrome strip came out at 1.000:1 against the panel
+     * behind it — the identical colour — and the block's border reached 1.469:1. The top 47% of every
+     * block dissolved into the card it sat on. Fills cannot fix it: no pair in the `--tierra-900` /
+     * `--tierra-950` range exceeds 1.416:1, so a 1px line is the only device in the dark half of this
+     * palette that reaches the 3:1 non-text floor. `--border-strong` measures 3.13:1 across the strip.
+     */
+    public function testTheBlockKeepsAnEdgeOnAHostsOwnSurface(): void
+    {
+        $css = self::styles();
+
+        self::assertStringNotContainsString('var(--border-subtle)', $css, '1.469:1 is not an edge');
+        self::assertSame(2, substr_count($css, 'var(--border-strong)'), 'the root border and the strip divider');
+    }
+
+    /**
+     * 🚨 THE LIVE REGION IS NEVER TAKEN OUT OF THE ACCESSIBILITY TREE.
+     *
+     * It was `.copy-said:empty { display: none }`, which kept the row from jumping and cost the whole
+     * announcement: `display: none` removes an element from the accessibility tree, and a
+     * `role="status"` absent from the tree when its text arrives announces nothing. Every «copied» was
+     * silent — and so was `press ⌘C`, the one message a user who cannot reach the clipboard needs.
+     */
+    public function testTheStatusRegionIsNeverDisplayNone(): void
+    {
+        $css = self::styles();
+
+        self::assertStringNotContainsString('.copy-said:empty', $css);
+        self::assertDoesNotMatchRegularExpression('/\.copy-said[^{]*\{[^}]*display:\s*none/', $css);
+
+        // The empty region must still cost no space, and a flex `gap` would have applied to it —
+        // which is exactly why `display: none` was reached for in the first place.
+        self::assertMatchesRegularExpression('/\.copy-said:not\(:empty\)\s*\{[^}]*margin-left/', $css);
+        self::assertDoesNotMatchRegularExpression('/\.copy\s*\{[^}]*\bgap:/', $css);
+
+        // And the region is in the markup at all times, empty or not.
+        self::assertStringContainsString('<span class="copy-said" role="status"></span>', self::render(['command' => 'php bin/coa serve']));
+    }
+
+    /**
+     * 🚨 EACH BUTTON IS NAMED BY THE COMMAND IT TAKES, not by the block's label.
+     *
+     * With the label it was «Copy terminal» on all eight buttons of one page: someone tabbing through
+     * them heard the same words eight times with nothing to tell the commands apart. The command is
+     * what the button copies, so it is the honest name.
+     */
+    public function testEachButtonIsNamedByTheCommandItTakes(): void
+    {
+        self::assertStringContainsString(
+            'aria-label="Copy php bin/coa house:start"',
+            self::render(['command' => 'php bin/coa house:start']),
+        );
+
+        // Many lines: the first is read, and the rest are counted rather than recited — a name is
+        // spoken in one breath.
+        self::assertStringContainsString(
+            'aria-label="Copy php bin/coa list and 1 more"',
+            self::render(['command' => "php bin/coa list\nphp bin/coa serve"]),
+        );
     }
 
     /** HTML only, and it refuses to paint a component that is not its own. */

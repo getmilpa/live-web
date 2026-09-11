@@ -64,7 +64,13 @@ final class CodeBlockHtmlRenderer implements ComponentRendererInterface
         $state = $request->state ?? $component->mount($request->props, $request->context);
         $command = \is_string($request->props['command'] ?? null) ? $request->props['command'] : '';
         $lines = CodeBlockComponent::lines($command);
-        $label = \is_string($state->meta['label'] ?? null) ? $state->meta['label'] : 'terminal';
+        // NO DEFAULT LABEL. An absent label means NO CHROME STRIP, and the strip is what a block gets
+        // when it has something to say about itself. Measured on the framework's welcome page: eight
+        // blocks all labelled the identical word «terminal», 43px of a 91px block — 47% — and 344px of
+        // a 2263px scroll spent on a word that teaches nothing after the first one. What says «terminal»
+        // is the ground, the mono face and the prompt; a label is for a block that is something ELSE
+        // (an output, a file, a response), which is exactly when it earns its 47%.
+        $label = \is_string($state->meta['label'] ?? null) ? $state->meta['label'] : '';
         $prompt = \is_string($state->meta['prompt'] ?? null) ? $state->meta['prompt'] : '$';
         $copyable = ($state->meta['copy'] ?? true) !== false && $lines !== [];
 
@@ -80,9 +86,16 @@ final class CodeBlockHtmlRenderer implements ComponentRendererInterface
         // makes when it reads `textContent` off the whole block.
         $payload = implode("\n", $lines);
 
+        // 🚨 THE ACCESSIBLE NAME IS THE COMMAND, NOT THE LABEL. With the label it was «Copy terminal» on
+        // all eight buttons of one page: a screen reader user tabbing through them heard the same words
+        // eight times and could not tell which command any button would take. The command is the thing
+        // the button actually copies, so it is the honest name — and the first line alone, because a
+        // name is read aloud in one breath.
+        $names = $lines === [] ? '' : $lines[0] . (\count($lines) > 1 ? ' and ' . (\count($lines) - 1) . ' more' : '');
+
         $button = $copyable
             ? '<button type="button" class="copy" data-milpa-copy="' . Html::escape($payload) . '"'
-                . ' aria-label="' . Html::escape('Copy ' . $label) . '">'
+                . ' aria-label="' . Html::escape('Copy ' . $names) . '">'
                 . '<span class="copy-icon" aria-hidden="true">⧉</span>'
                 . '<span class="copy-said" role="status"></span></button>'
             : '';
@@ -94,7 +107,14 @@ final class CodeBlockHtmlRenderer implements ComponentRendererInterface
             'data-milpa-component' => 'code-block',
             'data-milpa-component-id' => $state->componentId,
         ]) . '>'
-            . '<div class="chrome"><span class="label">' . Html::escape($label) . '</span>' . $button . '</div>'
+            // The strip exists when there is a label OR a button to hold; with neither it is 43px of
+            // nothing. When only the button is there it floats at the block's top right, which is where
+            // it already sat.
+            . ($label !== '' || $button !== ''
+                ? '<div class="chrome"' . ($label === '' ? ' data-bare="true"' : '') . '>'
+                    . ($label !== '' ? '<span class="label">' . Html::escape($label) . '</span>' : '')
+                    . $button . '</div>'
+                : '')
             . '<pre class="body"><code>' . $rows . '</code></pre>'
             . '</div>';
 
