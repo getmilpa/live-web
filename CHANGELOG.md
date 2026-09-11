@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.1](https://github.com/getmilpa/live-web/compare/v0.25.0...v0.25.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **code-block:** two empty rows per block, and a host page repainting the command ([#65](https://github.com/getmilpa/live-web/issues/65)) ([d6c277f](https://github.com/getmilpa/live-web/commit/d6c277f5720afcea90affc0291342292419484dc))
+
 ## [0.25.0](https://github.com/getmilpa/live-web/compare/v0.24.0...v0.25.0) (2026-09-11)
 
 
