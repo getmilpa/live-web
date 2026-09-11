@@ -60,6 +60,27 @@
   color: var(--tierra-50);
 }
 
+/* 🚨 THE `<code>` IS MADE A BLOCK, and that is a fix, not tidiness.
+   `<code>` is `display: inline` by default, and it holds `.line`, which is a block. An inline box
+   wrapping a block gets anonymous block boxes before and after it — so every block rendered TWO
+   EMPTY ROWS, one above the command and one below. Measured in a browser: the `<code>` stood at
+   69.97px where its single line is 22.4px, which is three line boxes for one line. Visible as a thin
+   mark at the left of each block, and invisible to every assertion about the markup. */
+code {
+  display: block;
+
+  /* 🚨 AND IT DEFENDS ITSELF AGAINST ITS HOST. A page's `code { background: … }` — the ordinary rule
+     for inline code chips in prose — reaches straight into this component: scoping keeps two
+     COMPONENTS apart and does nothing about the host document's element selectors. Measured on the
+     framework's welcome page: the command sat on a `rgb(55, 47, 39)` chip with 2.1px/5.6px padding
+     and a 6px radius, none of it this component's. So the properties this block depends on are
+     declared, not inherited from whatever page it lands in. */
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+}
+
 .line { display: block; white-space: pre; }
 
 /* The prompt is decoration and it is `aria-hidden`: a screen reader announcing «dollar sign» before
