@@ -173,6 +173,33 @@
     });
   }
 
+  // A registered application component uses the same signed transport and HTML reconciliation as the
+  // built-in widgets. Its renderer declares actions; the browser never implements their domain logic.
+  function milpaComponent(config) {
+    var cfg = config || {};
+    return {
+      componentId: cfg.componentId || '',
+      busy: false,
+      error: null,
+      act: function (action, payload) {
+        if (this.busy) { return Promise.resolve(); }
+        var self = this;
+        var root = this.$root;
+        this.busy = true;
+        this.error = null;
+        return send(bootData(), root, this.componentId, action, payload)
+          .then(function (result) {
+            apply(result, root, self, self.componentId);
+            if (result.status >= 200 && result.status < 300 && result.data && !result.data.html) {
+              refreshEnvelope(root, self.componentId, result.data.state);
+            }
+          })
+          .catch(function (e) { self.error = e.message; })
+          .then(function () { self.busy = false; });
+      },
+    };
+  }
+
   // milpaDataTable: selection, sort and paging over the wire; selection remembered locally.
   function milpaDataTable(config) {
     var cfg = config || {};
@@ -364,6 +391,7 @@
   runtime.register('milpaDataTable', milpaDataTable, { replace: true });
   runtime.register('milpaAutocomplete', milpaAutocomplete);
   runtime.register('milpaFieldRemote', milpaFieldRemote);
+  runtime.register('milpaComponent', milpaComponent);
 
   // Merge, never replace: keep any transport a host set and the local runtime's storage helpers.
   window.MilpaLive = Object.assign(runtime, { send: send, bootData: bootData, __remoteLoaded: true });

@@ -322,3 +322,17 @@ issues via [SECURITY.md](SECURITY.md), and note that this project follows a
 ---
 
 Milpa is designed, built, and maintained by **[Rodrigo Vicente - TeamX Agency](https://teamx.agency/?utm_source=github&utm_medium=readme&utm_campaign=milpa&utm_content=live-web)**.
+
+## Actions for custom components
+
+The remote runtime registers `milpaComponent({componentId})`. A custom renderer can use
+`x-data="milpaComponent({componentId: 'task-1'})"` on its component root and
+`@click="act('toggle', {})"` on a button. Supply the normal signed `data-milpa-state` envelope
+and a page `LiveBoot`, just as for the built-in remote renderers.
+
+`act(action, payload)` returns a promise, exposes `busy` and `error`, suppresses concurrent
+submissions from that instance, and uses the existing transport for CSRF rotation, signed state
+and response HTML reconciliation. With a successful state-only response it refreshes the envelope.
+A refused or failed request preserves the displayed HTML and sets `error`. This factory adds no
+client permission rule or application persistence; the endpoint still judges the component contract,
+principal, scope and signed state.
