@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.0](https://github.com/getmilpa/live-web/compare/v0.29.0...v0.30.0) (2026-09-12)
+
+
+### Features
+
+* let server-owned forms opt out of browser storage ([ab8ad12](https://github.com/getmilpa/live-web/commit/ab8ad12b8733c40d48ef2921878b278a75442dbd))
+* let server-owned forms opt out of browser storage ([cb60293](https://github.com/getmilpa/live-web/commit/cb60293c424cf797f8d0e4cc718cd8c7f9d8cda7))
+
 ## [0.29.0](https://github.com/getmilpa/live-web/compare/v0.28.0...v0.29.0) (2026-09-12)
 
 
