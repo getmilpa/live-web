@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/getmilpa/live-web/compare/v0.27.0...v0.28.0) (2026-09-12)
+
+
+### Features
+
+* ship the component stylesheet for independent screens ([#75](https://github.com/getmilpa/live-web/issues/75)) ([d0b1a34](https://github.com/getmilpa/live-web/commit/d0b1a34283522fc8bf8c393c3aa9283c56e8e943))
+
 ## [0.27.0](https://github.com/getmilpa/live-web/compare/v0.26.1...v0.27.0) (2026-09-11)
 
 
