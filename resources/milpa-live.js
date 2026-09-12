@@ -78,6 +78,12 @@
   // Client-local UX memory (no network): localStorage by default, chrome.storage.sync when a
   // component asks for it (a browser-extension surface). A broken store is an empty store.
   root.storage = {
+    // Explicit ephemeral fields: server values win on remount; no browser memory is read or written.
+    none: {
+      async get() { return null; },
+      async set() {},
+      async remove() {},
+    },
     local: {
       async get(key) {
         try { var value = window.localStorage.getItem(key); return value ? JSON.parse(value) : null; } catch (e) { return null; }
@@ -118,6 +124,7 @@
   };
 
   root.pickStorage = function (name) {
+    if (name === 'none') { return root.storage.none; }
     if (name === 'chrome.sync') { return root.storage.chromeSync; }
     if (name === 'session') { return root.storage.session; }
     return root.storage.local;

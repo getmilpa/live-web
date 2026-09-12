@@ -336,3 +336,9 @@ and response HTML reconciliation. With a successful state-only response it refre
 A refused or failed request preserves the displayed HTML and sets `error`. This factory adds no
 client permission rule or application persistence; the endpoint still judges the component contract,
 principal, scope and signed state.
+
+Fields inside a server-owned form can opt out of browser memory with the existing renderer prop
+`storage: 'none'`. Typing still updates the local field; remounting uses the server's value and
+never reads or writes localStorage, sessionStorage, or Chrome storage. This is useful after a
+successful submission or when switching identities. The default remains `local`; use `session`
+or `chrome.sync` when a field should remember its draft. Greenhouse decision 0328 / evidence 0645.

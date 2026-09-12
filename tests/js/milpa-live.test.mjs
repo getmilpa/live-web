@@ -273,3 +273,37 @@ test('a successful generic action without replacement HTML still renews its sign
   await component.act('toggle', {});
   assert.equal(envelope.textContent, '<signed next/>');
 });
+
+
+test('storage none keeps edits ephemeral and remounts the server value without touching browser stores', async () => {
+  const p = page();
+  let reads = 0, writes = 0, removals = 0;
+  p.sandbox.localStorage = {
+    getItem() { reads++; return JSON.stringify({ value: 'obsolete draft', checked: true }); },
+    setItem() { writes++; },
+    removeItem() { removals++; },
+  };
+  p.load(LOCAL);
+  const factories = Object.fromEntries(p.startAlpine());
+  for (const [factory, key, value, edit] of [['milpaField', 'value', 'server title', 'local edit'], ['milpaCheckbox', 'checked', false, true]]) {
+    const options = { componentId: 'form', storage: 'none', initialState: { [key]: value } };
+    const field = factories[factory](options);
+    await field.init();
+    assert.equal(field[key], value);
+    await field.change(edit);
+    await field.blur();
+    assert.equal(field[key], edit, 'typing still changes local UI state');
+    const remount = factories[factory](options);
+    await remount.init();
+    assert.equal(remount[key], value, 'the server wins on remount');
+    await field.reset(value);
+    assert.equal(field[key], value);
+  }
+  assert.deepEqual([reads, writes, removals], [0, 0, 0]);
+  const remembered = factories.milpaField({ componentId: 'form' });
+  await remembered.init();
+  assert.equal(remembered.value, 'obsolete draft', 'positive control: default local memory remains active');
+  await remembered.change('remember me');
+  await remembered.reset();
+  assert.deepEqual([reads, writes, removals], [1, 1, 1]);
+});
