@@ -129,7 +129,7 @@ test('the remote runtime replaces milpaDataTable through the explicit replace pa
   const calls = p.startAlpine();
   assert.deepEqual(
     calls.map(([name]) => name),
-    ['milpaField', 'milpaCheckbox', 'milpaDataTable', 'milpaAutocomplete', 'milpaFieldRemote'],
+    ['milpaField', 'milpaCheckbox', 'milpaDataTable', 'milpaAutocomplete', 'milpaFieldRemote', 'milpaComponent'],
     'the replaced name keeps its slot; new names queue after the built-ins',
   );
   const tables = calls.filter(([name]) => name === 'milpaDataTable');
@@ -153,7 +153,7 @@ test('the second copy of the remote runtime is refused with a warning; the repla
   const calls = p.startAlpine();
   assert.deepEqual(
     calls.map(([name]) => name),
-    ['milpaField', 'milpaCheckbox', 'milpaDataTable', 'milpaAutocomplete', 'milpaFieldRemote'],
+    ['milpaField', 'milpaCheckbox', 'milpaDataTable', 'milpaAutocomplete', 'milpaFieldRemote', 'milpaComponent'],
     'each factory bound once',
   );
 });
@@ -208,4 +208,68 @@ test('a returned csrfToken is stored into the boot, and the request carries the 
   live.transport = () => ({ status: 200, data: { ok: true } });
   await live.send(live.bootData(), root, 'c-1', 'go', {});
   assert.equal(JSON.parse(boot.textContent).csrfToken, 'fresh-token');
+});
+
+function applicationComponent() {
+  const boot = { textContent: JSON.stringify({ endpoint: '/live', sessionId: 'page', csrfToken: 'csrf' }) };
+  const p = page({ 'milpa-live-boot': boot });
+  p.load(LOCAL);
+  p.load(REMOTE);
+  const factory = p.startAlpine().find(([name]) => name === 'milpaComponent')[1];
+  const component = factory({ componentId: 'task' });
+  const envelope = { textContent: '<signed initial/>' };
+  const root = { querySelector: () => envelope, contains: () => false, outerHTML: '<task open/>' };
+  component.$root = root;
+  return { p, component, root, envelope, boot };
+}
+
+test('an application component sends its declared action and applies the server HTML without another client', async () => {
+  const { p, component, root, boot } = applicationComponent();
+  const sent = [];
+  p.sandbox.MilpaLive.transport = (b, body) => {
+    sent.push(body);
+    return { status: 200, data: { html: '<task complete/>', state: '<signed next/>', csrfToken: 'fresh' } };
+  };
+  await component.act('toggle', { id: 'one' });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].action, 'toggle');
+  assert.equal(sent[0].payload.id, 'one');
+  assert.equal(sent[0].state, '<signed initial/>');
+  assert.equal(root.outerHTML, '<task complete/>');
+  assert.equal(JSON.parse(boot.textContent).csrfToken, 'fresh');
+  assert.equal(component.busy, false);
+  assert.equal(component.error, null);
+});
+
+test('a generic action refuses double submission while its signed envelope is in flight', async () => {
+  const { p, component } = applicationComponent();
+  let finish;
+  let calls = 0;
+  p.sandbox.MilpaLive.transport = () => { calls++; return new Promise(resolve => { finish = resolve; }); };
+  const pending = component.act('toggle', {});
+  await component.act('toggle', {});
+  assert.equal(calls, 1);
+  assert.equal(component.busy, true);
+  finish({ status: 200, data: { html: '<task complete/>' } });
+  await pending;
+  assert.equal(component.busy, false);
+});
+
+test('refused and failed generic actions preserve the UI and report their error', async () => {
+  const { p, component, root } = applicationComponent();
+  p.sandbox.MilpaLive.transport = () => ({ status: 403, data: { message: 'Scope refused' } });
+  await component.act('toggle', {});
+  assert.equal(component.error, 'Scope refused');
+  assert.equal(root.outerHTML, '<task open/>');
+  p.sandbox.MilpaLive.transport = () => Promise.reject(new Error('Offline'));
+  await component.act('toggle', {});
+  assert.equal(component.error, 'Offline');
+  assert.equal(component.busy, false);
+});
+
+test('a successful generic action without replacement HTML still renews its signed envelope', async () => {
+  const { p, component, envelope } = applicationComponent();
+  p.sandbox.MilpaLive.transport = () => ({ status: 200, data: { state: '<signed next/>' } });
+  await component.act('toggle', {});
+  assert.equal(envelope.textContent, '<signed next/>');
 });
