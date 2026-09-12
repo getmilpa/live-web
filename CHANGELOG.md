@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/getmilpa/live-web/compare/v0.28.0...v0.29.0) (2026-09-12)
+
+
+### Features
+
+* expose generic signed component actions ([#77](https://github.com/getmilpa/live-web/issues/77)) ([7df4b45](https://github.com/getmilpa/live-web/commit/7df4b45b37537c7d4a80087e1749c39918cfbe18))
+
 ## [0.28.0](https://github.com/getmilpa/live-web/compare/v0.27.0...v0.28.0) (2026-09-12)
 
 
