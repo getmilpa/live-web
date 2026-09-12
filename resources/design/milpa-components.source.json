@@ -1,0 +1,13 @@
+{
+    "package": "@milpa/design",
+    "version": "0.9.0",
+    "license": "Apache-2.0",
+    "source": "https://github.com/getmilpa/milpa-design",
+    "sha256": {
+        "motion/milpa-motion.css": "ebd7a306bc07ef29e63aa8f781bfb194341d970ea1ad753cc192b21b0cbeff1a",
+        "primitives/milpa-primitives.css": "67a271abf74b7f98a24f5b9420b00a8ac434046c8947390db541a7115c2582c6",
+        "components/milpa-components.css": "d2df4a6dd104286d28abcc503733cdd6e64ca1ea5b446a80d05b6072f238d8a5",
+        "artifacts/milpa-artifacts.css": "96bf2af790fe5255091ec82edfdfeae107c871a6a861c0ad8cdc3a266c04f86b",
+        "layouts/milpa-layouts.css": "a9b1af4b94848a73c83e44ef0dd9b758edad2d57432e1d739130b734c0b0df18"
+    }
+}

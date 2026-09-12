@@ -167,11 +167,16 @@ not yet). When the guard implements `CsrfTokenLifetimeInterface`
 TTL left comes back refreshed as `csrfToken` in the OK response, and the remote runtime stores it into
 the boot for the next action.
 
-**The `@milpa/design` topology caveat.** The HTML renderers' CSS comes from `Milpa\Live\Support\MilpaDesign`,
-which resolves the `@milpa/design` npm package at `node_modules/@milpa/design` under your project
-root. If your layout differs (a monorepo, a lab checkout without `npm install`), set
-`MILPA_DESIGN_PATH` to the design package's directory — it takes priority over the npm-relative
-lookup and is checked first by every method on `MilpaDesign`.
+**Shipped component styles.** `Milpa\Live\Support\ComponentStyles` resolves the CSS required by the
+HTML renderers without installing npm packages or a panel. Serve `ComponentStyles::path()` at
+`ComponentStyles::url($assetPrefix)` alongside `DesignTokens::urls($assetPrefix)`. The bundle makes no
+external font requests; `DesignTokens` supplies local fonts and their relative `fonts/` paths.
+
+The bundle is generated from `@milpa/design` and records source-file hashes in
+`resources/design/milpa-components.source.json`. Maintainers regenerate it with
+`php scripts/build-component-styles.php /path/to/@milpa/design`; add `--check` to compare without writing.
+`MilpaDesign` remains available for tooling that explicitly needs the upstream npm layout and its
+`MILPA_DESIGN_PATH` override.
 
 ## Declared views — one runtime per page
 
