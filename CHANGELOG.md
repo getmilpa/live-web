@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.1](https://github.com/getmilpa/live-web/compare/v0.30.0...v0.30.1) (2026-09-20)
+
+
+### Bug Fixes
+
+* hold dispatch effects until the swapped DOM is re-bound ([#49](https://github.com/getmilpa/live-web/issues/49)) ([eeeb33d](https://github.com/getmilpa/live-web/commit/eeeb33dc7adb06b46e87f78c25259a28e448e759))
+* hold dispatch effects until the swapped DOM is re-bound (greenhouse decisions/0389) ([7bbb8d1](https://github.com/getmilpa/live-web/commit/7bbb8d181cd7c33a66fbfc96d695ccc134df5935))
+
 ## [0.30.0](https://github.com/getmilpa/live-web/compare/v0.29.0...v0.30.0) (2026-09-12)
 
 
