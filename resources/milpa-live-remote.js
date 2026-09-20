@@ -147,8 +147,25 @@
   function swapById(id) {
     return document.querySelector('[data-milpa-component-id="' + id + '"]');
   }
+  // Deliver `dispatch` effects only AFTER the DOM the server just swapped in has been re-initialised by
+  // Alpine (greenhouse #49 / decisions/0389). A component's own re-render replaces its root's outerHTML
+  // (see `apply`), and a cross-component `render` effect replaces another root's — and Alpine binds a new
+  // root's `x-on:` listeners ASYNCHRONOUSLY, from the MutationObserver microtask its swap queues. A
+  // `dispatch` fired synchronously in the same task reaches the freshly-swapped element BEFORE its
+  // listener exists, so the event is lost — the "seed a node, then navigate to it" click that silently
+  // did nothing while the write succeeded. `requestAnimationFrame` runs after that microtask (before the
+  // next paint), so every swapped root is bound by the time the event is delivered; `setTimeout` is the
+  // fallback on a non-browser host that has no rAF.
+  function afterRebind(cb) {
+    if (typeof window.requestAnimationFrame === 'function') { window.requestAnimationFrame(cb); }
+    else { setTimeout(cb, 0); }
+  }
   function applyEffects(effects) {
     if (!Array.isArray(effects)) { return; }
+    // `render` and `state` effects apply now; `dispatch` effects are held until after the swapped DOM
+    // is re-bound (see afterRebind), because a dispatch may target a component this very batch — or the
+    // acting component `apply` just swapped — whose listeners Alpine has not re-attached yet.
+    var dispatches = [];
     effects.forEach(function (effect) {
       if (!effect) { return; }
       // render: the server rendered the target — swap its root by id.
@@ -161,9 +178,9 @@
         return;
       }
       // dispatch: SIGNAL the target — deliver a `milpa:<event>` CustomEvent it can react to (no re-render).
+      // Deferred until every render swap above (and the acting component's own) is re-bound.
       if (effect.type === 'dispatch' && effect.to && effect.event) {
-        var el = swapById(effect.to);
-        if (el) { el.dispatchEvent(new CustomEvent('milpa:' + effect.event, { detail: effect.payload || {}, bubbles: true })); }
+        dispatches.push(effect);
         return;
       }
       // state: set a SHARED signal — one truth projected to every element that reads it (no target needed).
@@ -171,6 +188,14 @@
         if (window.MilpaLive && typeof window.MilpaLive.signal === 'function') { window.MilpaLive.signal(effect.key, effect.value); }
       }
     });
+    if (dispatches.length > 0) {
+      afterRebind(function () {
+        dispatches.forEach(function (effect) {
+          var el = swapById(effect.to);
+          if (el) { el.dispatchEvent(new CustomEvent('milpa:' + effect.event, { detail: effect.payload || {}, bubbles: true })); }
+        });
+      });
+    }
   }
 
   // A registered application component uses the same signed transport and HTML reconciliation as the
