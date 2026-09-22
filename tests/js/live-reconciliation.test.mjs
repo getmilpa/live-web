@@ -179,3 +179,20 @@ test('component replacement destroys the old Alpine tree and restores the active
   assert.equal(s.document.activeElement.selectionStart, 2);
   assert.equal(s.document.activeElement.selectionEnd, 4);
 });
+
+test('an action inherited by a nested Alpine scope replaces its signed owner, never the child root', async () => {
+  const s = scene();
+  s.sandbox.window.MilpaLive.transport = () => response();
+  const child = {
+    outerHTML: '<li data-milpa-component-id="todo-item"></li>',
+    querySelector: () => null,
+    contains: () => false,
+  };
+  const component = s.factory({ componentId: 'todo' });
+  component.$root = child; // Alpine's nested `$root` while resolving the parent's inherited act().
+
+  await component.act('complete', { id: 'one' });
+
+  assert.equal(s.first.root.removed, true, 'the root named by the signed component id was replaced');
+  assert.equal(child.outerHTML, '<li data-milpa-component-id="todo-item"></li>', 'the nested child stayed a child');
+});

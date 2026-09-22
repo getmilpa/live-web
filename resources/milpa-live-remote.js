@@ -332,6 +332,12 @@
   function swapById(id) {
     return document.querySelector('[data-milpa-component-id="' + id + '"]');
   }
+  // Alpine resolves a parent method from a nested x-data scope, but its `$root` magic then names the
+  // nested scope's element. The signed component id is the owner: always act on that root, with `$root`
+  // only as the fallback for a non-DOM host.
+  function rootOf(component) {
+    return swapById(component.componentId) || component.$root;
+  }
   // Deliver `dispatch` effects only AFTER the DOM the server just swapped in has been re-initialised by
   // Alpine (greenhouse #49 / decisions/0389). A component's own re-render replaces its root's outerHTML
   // (see `apply`), and a cross-component `render` effect replaces another root's — and Alpine binds a new
@@ -392,7 +398,7 @@
       act: function (action, payload) {
         if (this.busy) { return Promise.resolve(); }
         var self = this;
-        var root = this.$root;
+        var root = rootOf(this);
         this.busy = true;
         this.error = null;
         return send(bootData(), root, this.componentId, action, payload)
@@ -443,7 +449,7 @@
       },
       act: function (action, payload) {
         var self = this;
-        var root = this.$root;
+        var root = rootOf(this);
         this.busy = true;
         this.error = null;
         return send(bootData(), root, this.componentId, action, payload)
@@ -497,7 +503,7 @@
 
       submit: function (action, payload, sync) {
         var self = this;
-        var root = this.$root;
+        var root = rootOf(this);
         this.loading = true;
         this.error = null;
         return send(bootData(), root, this.componentId, action, payload)
@@ -578,7 +584,7 @@
       change: function (v) { this.value = v; },
       blur: function () {
         var self = this;
-        var root = this.$root;
+        var root = rootOf(this);
         this.busy = true;
         send(bootData(), root, this.componentId, 'blur', { value: this.value })
           .then(function (result) {

@@ -259,7 +259,8 @@ asset twice. Contract file paths remain server-side.
   current signed envelope — and the endpoint re-renders the target from it instead of mounting it
   fresh from `props`; a tampered, replayed, or foreign envelope is ignored and the fresh mount stands.
 - **Replacement keeps interaction continuity.** Before replacing a component root, the remote runtime
-  tears down its old Alpine tree and records the active field. It inserts the new root and signed
+  locates the signed owner by `componentId` (including when Alpine resolves its action from a nested
+  scope), tears down its old tree, and records the active field. It inserts the new root and signed
   envelope as one final DOM shape, then restores the matching field, selection, and focus.
 
 **Residue.** The client half of that last rule — the remote runtime collecting the target's envelope
