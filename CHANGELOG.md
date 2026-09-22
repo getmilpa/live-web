@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.30.2](https://github.com/getmilpa/live-web/compare/v0.30.1...v0.30.2) (2026-09-22)
+
+
+### Bug Fixes
+
+* reconcile dynamic component assets ([2f031d0](https://github.com/getmilpa/live-web/commit/2f031d06fe32f68b0ed03aac7ed977d2fd7e9794))
+* resolve inherited actions to their signed root ([0771bc0](https://github.com/getmilpa/live-web/commit/0771bc0029e5669dad077195a8f66253da0b69ba))
+
 ## [0.30.1](https://github.com/getmilpa/live-web/compare/v0.30.0...v0.30.1) (2026-09-20)
 
 
