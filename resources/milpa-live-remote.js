@@ -121,24 +121,209 @@
     });
   }
 
+  // A live render can introduce a component that was not present in the initial document. The server
+  // returns resolved bytes (never package paths) for those contracts plus URL assets from renderers.
+  // Seed from the SSR tags, then remember every addition so repeated renders cost each asset once.
+  var installedComponentAssets = null;
+  var installedClientStyles = null;
+  var installedClientScripts = null;
+
+  function elements(selector) {
+    if (!document || typeof document.querySelectorAll !== 'function') { return []; }
+    try { return Array.prototype.slice.call(document.querySelectorAll(selector)); } catch (e) { return []; }
+  }
+
+  function attribute(el, name) {
+    return el && typeof el.getAttribute === 'function' ? el.getAttribute(name) : null;
+  }
+
+  function mark(el, name, value) {
+    if (el && typeof el.setAttribute === 'function') { el.setAttribute(name, value); }
+  }
+
+  function appendTarget() {
+    return document.head || document.body || document.documentElement || null;
+  }
+
+  function seedInstalledAssets() {
+    if (installedComponentAssets !== null) { return; }
+    installedComponentAssets = {};
+    installedClientStyles = {};
+    installedClientScripts = {};
+    elements('[data-milpa-components]').forEach(function (el) {
+      String(attribute(el, 'data-milpa-components') || '').split(/\s+/).forEach(function (key) {
+        if (key) { installedComponentAssets[key] = true; }
+      });
+    });
+    elements('link[rel="stylesheet"][href]').forEach(function (el) {
+      var href = attribute(el, 'href');
+      if (href) { installedClientStyles[href] = true; }
+    });
+    elements('script[src]').forEach(function (el) {
+      var src = attribute(el, 'src');
+      if (src) { installedClientScripts[src] = true; }
+    });
+  }
+
+  function installClientStyle(href) {
+    if (!href || installedClientStyles[href]) { return; }
+    installedClientStyles[href] = true;
+    var target = appendTarget();
+    if (!target || typeof target.appendChild !== 'function' || typeof document.createElement !== 'function') { return; }
+    var link = document.createElement('link');
+    mark(link, 'rel', 'stylesheet');
+    mark(link, 'href', href);
+    mark(link, 'data-milpa-live-asset', 'style');
+    target.appendChild(link);
+  }
+
+  function installClientScript(src) {
+    if (!src || installedClientScripts[src]) { return Promise.resolve(); }
+    installedClientScripts[src] = true;
+    var target = appendTarget();
+    if (!target || typeof target.appendChild !== 'function' || typeof document.createElement !== 'function') { return Promise.resolve(); }
+    return new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.async = false;
+      mark(script, 'src', src);
+      mark(script, 'data-milpa-live-asset', 'script');
+      script.onload = resolve;
+      script.onerror = function () {
+        delete installedClientScripts[src];
+        reject(new Error('live: failed to load declared script ' + src));
+      };
+      target.appendChild(script);
+    });
+  }
+
+  function mergeMessages(words, componentKey) {
+    if (!words || typeof words !== 'object' || Object.keys(words).length === 0) { return; }
+    var el = document.getElementById('milpa-messages');
+    var current = {};
+    if (el) {
+      try { current = JSON.parse(el.textContent || '{}') || {}; } catch (e) { current = {}; }
+    } else if (typeof document.createElement === 'function') {
+      el = document.createElement('script');
+      mark(el, 'type', 'application/json');
+      mark(el, 'id', 'milpa-messages');
+      var target = document.body || appendTarget();
+      if (target && typeof target.appendChild === 'function') { target.appendChild(el); }
+    }
+    if (!el) { return; }
+    Object.keys(words).forEach(function (key) { current[key] = words[key]; });
+    el.textContent = JSON.stringify(current);
+    var present = String(attribute(el, 'data-milpa-components') || '').split(/\s+/).filter(Boolean);
+    if (present.indexOf(componentKey) === -1) { present.push(componentKey); }
+    mark(el, 'data-milpa-components', present.join(' '));
+  }
+
+  function installComponentAssets(components) {
+    if (!components || typeof components !== 'object') { return; }
+    var target = appendTarget();
+    Object.keys(components).forEach(function (key) {
+      if (installedComponentAssets[key]) { return; }
+      installedComponentAssets[key] = true;
+      var contribution = components[key] || {};
+      if (contribution.styles && target && typeof target.appendChild === 'function' && typeof document.createElement === 'function') {
+        var style = document.createElement('style');
+        mark(style, 'data-milpa-assets', 'components');
+        mark(style, 'data-milpa-components', key);
+        style.textContent = contribution.styles;
+        target.appendChild(style);
+      }
+      if (Array.isArray(contribution.scripts) && contribution.scripts.length && target && typeof target.appendChild === 'function' && typeof document.createElement === 'function') {
+        var script = document.createElement('script');
+        mark(script, 'data-milpa-assets', 'components');
+        mark(script, 'data-milpa-components', key);
+        script.textContent = contribution.scripts.join('\n');
+        target.appendChild(script);
+      }
+      mergeMessages(contribution.messages, key);
+    });
+  }
+
+  function installAssets(assets) {
+    seedInstalledAssets();
+    var client = assets && assets.client ? assets.client : {};
+    var styles = Array.isArray(client.styles) ? client.styles : [];
+    var scripts = Array.isArray(client.scripts) ? client.scripts : [];
+    styles.forEach(installClientStyle);
+    var loaded = Promise.resolve();
+    scripts.forEach(function (src) { loaded = loaded.then(function () { return installClientScript(src); }); });
+    return loaded.then(function () { installComponentAssets(assets && assets.components); });
+  }
+
+  function selectorValue(value) {
+    return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  function activeFieldOf(root) {
+    var active = document.activeElement;
+    if (!active || !root || typeof root.contains !== 'function' || !root.contains(active)) { return null; }
+    var owner = typeof active.closest === 'function' ? active.closest('[data-milpa-component-id]') : null;
+    return {
+      owner: owner && typeof owner.getAttribute === 'function' ? owner.getAttribute('data-milpa-component-id') : '',
+      id: active.id || '',
+      name: active.name || '',
+      type: active.type || '',
+      start: typeof active.selectionStart === 'number' ? active.selectionStart : null,
+      end: typeof active.selectionEnd === 'number' ? active.selectionEnd : null,
+      direction: active.selectionDirection || undefined,
+    };
+  }
+
+  function restoreActiveField(root, remembered) {
+    if (!root || !remembered || typeof root.querySelector !== 'function') { return; }
+    var owner = remembered.owner ? '[data-milpa-component-id="' + selectorValue(remembered.owner) + '"] ' : '';
+    var field = null;
+    var selectors = [];
+    if (remembered.id) { selectors.push(owner + '[id="' + selectorValue(remembered.id) + '"]'); }
+    if (remembered.name) { selectors.push(owner + '[name="' + selectorValue(remembered.name) + '"]'); }
+    if (remembered.id) { selectors.push('[id="' + selectorValue(remembered.id) + '"]'); }
+    if (remembered.name) { selectors.push('[name="' + selectorValue(remembered.name) + '"]'); }
+    selectors.some(function (selector) {
+      try { field = root.querySelector(selector); } catch (e) { field = null; }
+      return Boolean(field);
+    });
+    if (!field || typeof field.focus !== 'function') { return; }
+    field.focus({ preventScroll: true });
+    if (remembered.start !== null && remembered.end !== null && typeof field.setSelectionRange === 'function') {
+      try { field.setSelectionRange(remembered.start, remembered.end, remembered.direction); } catch (e) { /* not a text control */ }
+    }
+  }
+
+  // Insert the new root explicitly, then remove the old one. This gives Alpine one final DOM shape to
+  // observe, lets us tear down the old reactive tree, and gives focus a stable element to return to.
+  function replaceComponent(componentRoot, html, componentId) {
+    var remembered = activeFieldOf(componentRoot);
+    var stale = componentId ? document.querySelector('script[data-milpa-state="' + componentId + '"]') : null;
+    if (stale && !componentRoot.contains(stale) && typeof stale.remove === 'function') { stale.remove(); }
+    if (window.Alpine && typeof window.Alpine.destroyTree === 'function') { window.Alpine.destroyTree(componentRoot); }
+    if (typeof componentRoot.insertAdjacentHTML !== 'function' || typeof componentRoot.remove !== 'function') {
+      componentRoot.outerHTML = html;
+      return swapById(componentId);
+    }
+    componentRoot.insertAdjacentHTML('afterend', html);
+    var next = componentRoot.nextElementSibling;
+    componentRoot.remove();
+    var rendered = next || swapById(componentId);
+    restoreActiveField(rendered, remembered);
+    return rendered;
+  }
+
   // Apply the server's answer: the re-rendered HTML replaces the component root (the new root
   // carries the new signed envelope and its own x-data, so Alpine mounts it fresh), or the
   // component shows the error the server returned.
   function apply(result, componentRoot, self, componentId) {
     if (result.status >= 200 && result.status < 300 && result.data) {
-      if (result.data.html) {
-        // The server's html is the whole component render (root + its signed envelope). If the old
-        // envelope was a SIBLING of the root (not inside it), drop it first so the swap doesn't leave a
-        // stale duplicate keyed by the same componentId.
-        var stale = componentId ? document.querySelector('script[data-milpa-state="' + componentId + '"]') : null;
-        if (stale && !componentRoot.contains(stale)) { stale.remove(); }
-        componentRoot.outerHTML = result.data.html;
-      }
-      applyEffects(result.data.effects);
-      return;
+      return installAssets(result.data.assets).then(function () {
+        if (result.data.html) { replaceComponent(componentRoot, result.data.html, componentId); }
+        applyEffects(result.data.effects);
+      });
     }
     var err = (result.data && (result.data.message || result.data.error)) || ('live: HTTP ' + result.status);
     self.error = err;
+    return Promise.resolve();
   }
 
   // Cross-component render effects (greenhouse decisions/0189): a handler DECLARED that ANOTHER component
@@ -146,6 +331,12 @@
   // A handler declares behaviour — "on this interaction, re-paint that component" — with no imperative JS.
   function swapById(id) {
     return document.querySelector('[data-milpa-component-id="' + id + '"]');
+  }
+  // Alpine resolves a parent method from a nested x-data scope, but its `$root` magic then names the
+  // nested scope's element. The signed component id is the owner: always act on that root, with `$root`
+  // only as the fallback for a non-DOM host.
+  function rootOf(component) {
+    return swapById(component.componentId) || component.$root;
   }
   // Deliver `dispatch` effects only AFTER the DOM the server just swapped in has been re-initialised by
   // Alpine (greenhouse #49 / decisions/0389). A component's own re-render replaces its root's outerHTML
@@ -172,9 +363,7 @@
       if (effect.type === 'render' && effect.target && effect.html) {
         var target = swapById(effect.target);
         if (!target) { return; }
-        var stale = document.querySelector('script[data-milpa-state="' + effect.target + '"]');
-        if (stale && !target.contains(stale)) { stale.remove(); }
-        target.outerHTML = effect.html;
+        replaceComponent(target, effect.html, effect.target);
         return;
       }
       // dispatch: SIGNAL the target — deliver a `milpa:<event>` CustomEvent it can react to (no re-render).
@@ -209,15 +398,16 @@
       act: function (action, payload) {
         if (this.busy) { return Promise.resolve(); }
         var self = this;
-        var root = this.$root;
+        var root = rootOf(this);
         this.busy = true;
         this.error = null;
         return send(bootData(), root, this.componentId, action, payload)
           .then(function (result) {
-            apply(result, root, self, self.componentId);
-            if (result.status >= 200 && result.status < 300 && result.data && !result.data.html) {
-              refreshEnvelope(root, self.componentId, result.data.state);
-            }
+            return apply(result, root, self, self.componentId).then(function () {
+              if (result.status >= 200 && result.status < 300 && result.data && !result.data.html) {
+                refreshEnvelope(root, self.componentId, result.data.state);
+              }
+            });
           })
           .catch(function (e) { self.error = e.message; })
           .then(function () { self.busy = false; });
@@ -259,11 +449,11 @@
       },
       act: function (action, payload) {
         var self = this;
-        var root = this.$root;
+        var root = rootOf(this);
         this.busy = true;
         this.error = null;
         return send(bootData(), root, this.componentId, action, payload)
-          .then(function (result) { apply(result, root, self, self.componentId); })
+          .then(function (result) { return apply(result, root, self, self.componentId); })
           .catch(function (e) { self.error = e.message; })
           .then(function () { self.busy = false; self.remember(); });
       },
@@ -313,14 +503,16 @@
 
       submit: function (action, payload, sync) {
         var self = this;
-        var root = this.$root;
+        var root = rootOf(this);
         this.loading = true;
         this.error = null;
         return send(bootData(), root, this.componentId, action, payload)
           .then(function (result) {
             if (result.status >= 200 && result.status < 300 && result.data) {
-              refreshEnvelope(root, self.componentId, result.data.state);
-              sync(result.data.data || {});
+              return installAssets(result.data.assets).then(function () {
+                refreshEnvelope(root, self.componentId, result.data.state);
+                sync(result.data.data || {});
+              });
             } else {
               self.error = (result.data && (result.data.message || result.data.error)) || ('live: HTTP ' + result.status);
             }
@@ -392,15 +584,17 @@
       change: function (v) { this.value = v; },
       blur: function () {
         var self = this;
-        var root = this.$root;
+        var root = rootOf(this);
         this.busy = true;
         send(bootData(), root, this.componentId, 'blur', { value: this.value })
           .then(function (result) {
             if (result.status >= 200 && result.status < 300 && result.data) {
-              refreshEnvelope(root, self.componentId, result.data.state);
-              var data = result.data.data || {};
-              if ('error' in data) { self.error = data.error; }
-              applyEffects(result.data.effects);
+              return installAssets(result.data.assets).then(function () {
+                refreshEnvelope(root, self.componentId, result.data.state);
+                var data = result.data.data || {};
+                if ('error' in data) { self.error = data.error; }
+                applyEffects(result.data.effects);
+              });
             } else {
               self.error = (result.data && (result.data.message || result.data.error)) || ('live: HTTP ' + result.status);
             }

@@ -63,6 +63,12 @@ final class ComponentAssetOrchestratorTest extends TestCase
 
         self::assertSame(['rating@1'], $assets->emitted);
         self::assertSame([], $assets->unreadable);
+        self::assertArrayHasKey('rating@1', $assets->components);
+        self::assertStringContainsString('[data-milpa-component="rating"]', $assets->components['rating@1']['styles']);
+        self::assertCount(1, $assets->components['rating@1']['scripts']);
+        self::assertStringContainsString('window.milpaRating', $assets->components['rating@1']['scripts'][0]);
+        self::assertStringContainsString('data-milpa-components="rating@1"', $assets->styleTag());
+        self::assertStringContainsString('data-milpa-components="rating@1"', $assets->scriptTag());
         self::assertStringContainsString('[data-milpa-component="rating"]', $assets->styleTag());
         self::assertStringContainsString('window.milpaRating', $assets->scriptTag());
         self::assertFalse($assets->isEmpty());
@@ -127,6 +133,7 @@ final class ComponentAssetOrchestratorTest extends TestCase
 
         self::assertSame(\strlen($once->styles), \strlen($fifty->styles));
         self::assertSame(['rating@1'], $fifty->emitted);
+        self::assertCount(1, $fifty->components);
         self::assertCount(1, $fifty->scripts);
     }
 

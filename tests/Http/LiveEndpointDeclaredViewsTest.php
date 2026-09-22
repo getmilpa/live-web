@@ -26,7 +26,9 @@ use Milpa\Live\Rendering\FormPrimitiveHtmlRenderer;
 use Milpa\Live\Runtime\CompositeComponentRegistry;
 use Milpa\Live\Runtime\InMemoryComponentRegistry;
 use Milpa\Live\Security\HmacCsrfGuard;
+use Milpa\Live\Tests\Fixtures\DeclaringHtmlRenderer;
 use Milpa\Live\Tests\Fixtures\TestSecurityWiring;
+use Milpa\Live\ValueObjects\ClientAssets;
 use Milpa\Live\ValueObjects\ComponentContext;
 use Milpa\Live\ValueObjects\ComponentContract;
 use Milpa\Live\ValueObjects\InteractionRequest;
@@ -149,6 +151,34 @@ final class LiveEndpointDeclaredViewsTest extends TestCase
         self::assertStringContainsString('painted from host', $effects[0]['html']);
         self::assertArrayNotHasKey('component', $effects[0]);
         self::assertArrayNotHasKey('csrfToken', $response->body, 'a fresh token is not refreshed');
+    }
+
+    public function testARenderEffectCarriesTheTargetRenderersClientFiles(): void
+    {
+        $components = $this->composite();
+        $csrf = new HmacCsrfGuard('test-csrf-secret');
+        $renderers = new ComponentRendererRegistry();
+        $renderers->registerFor('textarea', new DeclaringHtmlRenderer(new ClientAssets(
+            scripts: ['/guest/textarea.js'],
+            styles: ['/guest/textarea.css'],
+        )));
+        $endpoint = new LiveEndpoint(
+            components: $components,
+            codec: $this->codec,
+            authorizer: TestSecurityWiring::authorizer($components),
+            csrf: $csrf,
+            route: TestSecurityWiring::ROUTE,
+            renderers: $renderers,
+        );
+
+        $response = $this->paint($endpoint, $components, $csrf);
+
+        self::assertSame(200, $response->status, json_encode($response->body));
+        self::assertStringContainsString('painted from host', $response->body['effects'][0]['html'] ?? '');
+        self::assertSame(
+            ['scripts' => ['/guest/textarea.js'], 'styles' => ['/guest/textarea.css']],
+            $response->body['assets']['client'] ?? null,
+        );
     }
 
     public function testARenderEffectWithTheTargetsCurrentEnvelopeReRendersFromItInsteadOfMountingFresh(): void
