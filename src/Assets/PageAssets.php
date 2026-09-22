@@ -14,6 +14,8 @@ declare(strict_types=1);
 
 namespace Milpa\Live\Assets;
 
+use Milpa\Live\Support\Html;
+
 /**
  * Everything the components on one page declared, gathered once and ready to embed.
  *
@@ -26,11 +28,13 @@ namespace Milpa\Live\Assets;
 final readonly class PageAssets
 {
     /**
-     * @param array<int, string>    $scripts    Client scripts, in declaration order.
-     * @param array<string, string> $messages   Resolved words, keyed `component.key`.
-     * @param array<int, string>    $emitted    `name@version` of every component that contributed.
-     * @param array<string, string> $unreadable `name@version` => the path it declared and does not ship.
-     * @param array<string, string> $refused    `name@version` => why part of an override was not honoured.
+     * @param array<int, string>                                                                           $scripts    Client scripts, in declaration order.
+     * @param array<string, string>                                                                        $messages   Resolved words, keyed `component.key`.
+     * @param array<int, string>                                                                           $emitted    `name@version` of every component that contributed.
+     * @param array<string, string>                                                                        $unreadable `name@version` => the path it declared and does not ship.
+     * @param array<string, string>                                                                        $refused    `name@version` => why part of an override was not honoured.
+     * @param array<string, array{styles: string, scripts: list<string>, messages: array<string, string>}> $components
+     *                                                                                                                 each contract's contribution, kept separate so a live response can add a newly-rendered contract once
      */
     public function __construct(
         public string $styles = '',
@@ -39,6 +43,7 @@ final readonly class PageAssets
         public array $emitted = [],
         public array $unreadable = [],
         public array $refused = [],
+        public array $components = [],
     ) {
     }
 
@@ -52,7 +57,7 @@ final readonly class PageAssets
             return '';
         }
 
-        return '<style data-milpa-assets="components">' . $this->styles . '</style>';
+        return '<style data-milpa-assets="components"' . $this->componentMarker() . '>' . $this->styles . '</style>';
     }
 
     /**
@@ -64,7 +69,7 @@ final readonly class PageAssets
             return '';
         }
 
-        return '<script data-milpa-assets="components">' . implode("\n", $this->scripts) . '</script>';
+        return '<script data-milpa-assets="components"' . $this->componentMarker() . '>' . implode("\n", $this->scripts) . '</script>';
     }
 
     /**
@@ -81,7 +86,7 @@ final readonly class PageAssets
 
         $json = json_encode($this->messages, \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES | \JSON_HEX_TAG | \JSON_HEX_AMP | \JSON_HEX_APOS | \JSON_HEX_QUOT);
 
-        return '<script type="application/json" id="milpa-messages">' . $json . '</script>';
+        return '<script type="application/json" id="milpa-messages"' . $this->componentMarker() . '>' . $json . '</script>';
     }
 
     /**
@@ -91,5 +96,15 @@ final readonly class PageAssets
     public function isEmpty(): bool
     {
         return $this->styleTag() === '' && $this->scriptTag() === '' && $this->messagesTag() === '';
+    }
+
+    /** Marks the contracts already present in the initial document so live reconciliation never emits them twice. */
+    private function componentMarker(): string
+    {
+        if ($this->emitted === []) {
+            return '';
+        }
+
+        return ' ' . Html::attrs(['data-milpa-components' => implode(' ', $this->emitted)]);
     }
 }

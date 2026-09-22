@@ -15,8 +15,12 @@ declare(strict_types=1);
 namespace Milpa\Live\Http;
 
 use Milpa\Interfaces\Event\MilpaEventDispatcherInterface;
+use Milpa\Live\Assets\ComponentAssetOrchestrator;
+use Milpa\Live\Assets\ComponentMessages;
+use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
 use Milpa\Live\Contracts\Component\ComponentRegistryInterface;
 use Milpa\Live\Contracts\Rendering\ComponentRendererInterface;
+use Milpa\Live\Contracts\Rendering\DeclaresClientAssets;
 use Milpa\Live\Contracts\Security\CsrfGuardInterface;
 use Milpa\Live\Contracts\Security\CsrfTokenLifetimeInterface;
 use Milpa\Live\Contracts\Security\InteractionAuthorizerInterface;
@@ -26,9 +30,12 @@ use Milpa\Live\Effects\RenderEffect;
 use Milpa\Live\Events\LiveEventEmitter;
 use Milpa\Live\Rendering\ComponentRendererRegistry;
 use Milpa\Live\ValueObjects\ComponentContext;
+use Milpa\Live\ValueObjects\ClientAssets;
+use Milpa\Live\ValueObjects\ComponentContract;
 use Milpa\Live\ValueObjects\InteractionRequest;
 use Milpa\Live\ValueObjects\InteractionResult;
 use Milpa\Live\ValueObjects\RenderRequest;
+use Milpa\Live\ValueObjects\RenderResult;
 use Milpa\Live\ValueObjects\RenderTarget;
 use Milpa\Live\ValueObjects\SecurityPrincipal;
 use Milpa\Live\ValueObjects\StateSnapshot;
@@ -84,6 +91,8 @@ final readonly class LiveEndpoint
         private array|ComponentRendererRegistry $renderers = [],
         private array $renderProps = [],
         private ?MilpaEventDispatcherInterface $dispatcher = null,
+        private ComponentAssetOrchestrator $assetOrchestrator = new ComponentAssetOrchestrator(),
+        private string $locale = ComponentMessages::DEFAULT_LOCALE,
     ) {
         // The dispatcher enters this package here, so the catalogue can be read at
         // boot instead of only after the first request (greenhouse decisions/0228).
@@ -200,6 +209,8 @@ final readonly class LiveEndpoint
         }
 
         $html = null;
+        $clientAssets = ClientAssets::empty();
+        $componentContracts = [];
         $renderer = $this->rendererFor($snapshot->componentName);
         if ($renderer !== null) {
             $rendered = $renderer->render($component, new RenderRequest(
@@ -213,7 +224,10 @@ final readonly class LiveEndpoint
                 target: RenderTarget::HTML,
             ));
             $html = $rendered->output;
+            $this->collectAssets($component, $renderer, $rendered, $clientAssets, $componentContracts);
         }
+        $effects = $this->resolveEffects($result->effects, $clientAssets, $componentContracts);
+        $declared = $this->assetOrchestrator->collect($componentContracts, $this->localeFor($result->state));
 
         $body = [
             'componentId' => $result->state->componentId,
@@ -222,8 +236,12 @@ final readonly class LiveEndpoint
             'data' => $result->state->data,
             'state' => $this->codec->encodeState($result->state),
             'html' => $html,
-            'effects' => $this->resolveEffects($result->effects),
+            'effects' => $effects,
             'errors' => $result->errors,
+            'assets' => [
+                'client' => $clientAssets->toArray(),
+                'components' => $declared->components,
+            ],
         ];
         $refreshed = $this->refreshedCsrfToken($request);
         if ($refreshed !== null) {
@@ -248,10 +266,11 @@ final readonly class LiveEndpoint
      * renders here, `state` is consumed and stripped: the envelope never travels back raw.
      *
      * @param array<int, array<string, mixed>> $effects
+     * @param array<int, ComponentContract>    $componentContracts
      *
      * @return array<int, array<string, mixed>>
      */
-    private function resolveEffects(array $effects): array
+    private function resolveEffects(array $effects, ClientAssets &$clientAssets, array &$componentContracts): array
     {
         $resolved = [];
         foreach ($effects as $effect) {
@@ -283,10 +302,53 @@ final readonly class LiveEndpoint
                 state: $current ?? $component->mount($props, $context),
                 target: RenderTarget::HTML,
             ));
+            $this->collectAssets($component, $renderer, $rendered, $clientAssets, $componentContracts);
             $resolved[] = ['type' => RenderEffect::TYPE, 'target' => $target, 'html' => $rendered->output];
         }
 
         return $resolved;
+    }
+
+    /**
+     * Retains both asset channels of one successful render. Contracts stay as objects on the server;
+     * only their resolved bytes are allowed onto the wire, so local package paths never leak.
+     *
+     * @param array<int, ComponentContract> $componentContracts
+     */
+    private function collectAssets(
+        ComponentDefinitionInterface $component,
+        ComponentRendererInterface $renderer,
+        RenderResult $rendered,
+        ClientAssets &$clientAssets,
+        array &$componentContracts,
+    ): void {
+        $clientAssets = $clientAssets->merge($rendered->clientAssets());
+        if ($renderer instanceof DeclaresClientAssets) {
+            $clientAssets = $clientAssets->merge($renderer->clientAssets());
+        }
+
+        $contracts = $rendered->assets['componentContracts'] ?? [$component::contract()];
+        if (!\is_array($contracts)) {
+            $contracts = [$component::contract()];
+        }
+        array_unshift($contracts, $component::contract());
+        foreach ($contracts as $contract) {
+            if ($contract instanceof ComponentContract) {
+                $componentContracts[] = $contract;
+            }
+        }
+    }
+
+    /** The rendered state may select a locale; the endpoint's configured locale is the stable fallback. */
+    private function localeFor(StateSnapshot $state): string
+    {
+        $dataLocale = $state->data['locale'] ?? null;
+        if (\is_string($dataLocale) && $dataLocale !== '') {
+            return $dataLocale;
+        }
+        $metaLocale = $state->meta['locale'] ?? null;
+
+        return \is_string($metaLocale) && $metaLocale !== '' ? $metaLocale : $this->locale;
     }
 
     /**

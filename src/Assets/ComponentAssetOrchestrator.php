@@ -60,6 +60,7 @@ final class ComponentAssetOrchestrator
         $emitted = [];
         $unreadable = [];
         $refused = [];
+        $components = [];
         $seen = [];
 
         foreach ($contracts as $contract) {
@@ -77,6 +78,9 @@ final class ComponentAssetOrchestrator
             }
 
             $contributed = false;
+            $componentStyles = [];
+            $componentScripts = [];
+            $componentMessages = [];
 
             $override = $this->overrides?->forComponent($contract->name);
 
@@ -86,7 +90,9 @@ final class ComponentAssetOrchestrator
                 if ($css === null) {
                     $unreadable[$key] = $presentation->styles;
                 } else {
-                    $styles[] = $this->scoper->scope($css, $this->scopeFor($contract));
+                    $scoped = $this->scoper->scope($css, $this->scopeFor($contract));
+                    $styles[] = $scoped;
+                    $componentStyles[] = $scoped;
                     $contributed = true;
                 }
             }
@@ -98,6 +104,7 @@ final class ComponentAssetOrchestrator
                     $unreadable[$key] = $presentation->script;
                 } else {
                     $scripts[] = $js;
+                    $componentScripts[] = $js;
                     $contributed = true;
                 }
             }
@@ -121,7 +128,9 @@ final class ComponentAssetOrchestrator
             }
 
             foreach ($words as $messageKey => $message) {
-                $messages[$contract->name . '.' . $messageKey] = $message;
+                $namespaced = $contract->name . '.' . $messageKey;
+                $messages[$namespaced] = $message;
+                $componentMessages[$namespaced] = $message;
                 $contributed = true;
             }
 
@@ -135,7 +144,9 @@ final class ComponentAssetOrchestrator
                 if ($css === null) {
                     $unreadable[$key . ' (override)'] = $override->styles;
                 } else {
-                    $styles[] = $this->scoper->scope($css, $this->scopeFor($contract));
+                    $scoped = $this->scoper->scope($css, $this->scopeFor($contract));
+                    $styles[] = $scoped;
+                    $componentStyles[] = $scoped;
                     $contributed = true;
                 }
             }
@@ -150,6 +161,11 @@ final class ComponentAssetOrchestrator
 
             if ($contributed) {
                 $emitted[] = $key;
+                $components[$key] = [
+                    'styles' => implode("\n", $componentStyles),
+                    'scripts' => $componentScripts,
+                    'messages' => $componentMessages,
+                ];
             }
         }
 
@@ -160,6 +176,7 @@ final class ComponentAssetOrchestrator
             emitted: $emitted,
             unreadable: $unreadable,
             refused: $refused,
+            components: $components,
         );
     }
 

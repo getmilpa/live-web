@@ -227,6 +227,13 @@ registry answers per name (`registerFor()`), exactly as the array did: a target-
 renderer is not consulted for a name, because every shipped HTML renderer is single-family and throws
 for the rest — a host with a general renderer registers it for each name it serves.
 
+A successful interaction also carries the assets of the component and every resolved `RenderEffect`.
+Renderer URLs travel under `assets.client`; contract presentation bytes travel under
+`assets.components`, separated by `name@version`. Initial page tags record the contracts already
+present. The remote runtime loads only missing URLs and contracts before inserting the returned HTML,
+so a child first introduced by an action arrives with its CSS, script, and messages without loading any
+asset twice. Contract file paths remain server-side.
+
 **The rules the runtime enforces.**
 
 - **No override.** `MilpaLive.register(name, factory)` throws when `name` is already bound — a
@@ -251,6 +258,9 @@ for the rest — a host with a general renderer registers it for each name it se
 - **Current state wins over a fresh mount.** A `RenderEffect` may carry `state` — the target's
   current signed envelope — and the endpoint re-renders the target from it instead of mounting it
   fresh from `props`; a tampered, replayed, or foreign envelope is ignored and the fresh mount stands.
+- **Replacement keeps interaction continuity.** Before replacing a component root, the remote runtime
+  tears down its old Alpine tree and records the active field. It inserts the new root and signed
+  envelope as one final DOM shape, then restores the matching field, selection, and focus.
 
 **Residue.** The client half of that last rule — the remote runtime collecting the target's envelope
 from the page and sending it back so the handler can put it in the effect — is not shipped in this

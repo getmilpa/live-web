@@ -16,6 +16,9 @@ namespace Milpa\Live\Tests\Http;
 
 use Milpa\Live\Adapters\Alpine\AlpineRuntimeAdapter;
 use Milpa\Live\Components\Autocomplete\AutocompleteComponent;
+use Milpa\Live\Contracts\Component\ComponentDefinitionInterface;
+use Milpa\Live\Contracts\Rendering\ComponentRendererInterface;
+use Milpa\Live\Contracts\Rendering\DeclaresClientAssets;
 use Milpa\Live\Contracts\Transport\StateTransferCodecInterface;
 use Milpa\Live\DataSource\ArrayDataSource;
 use Milpa\Live\DataSource\InMemoryDataSourceRegistry;
@@ -25,6 +28,10 @@ use Milpa\Live\Rendering\AutocompleteHtmlRenderer;
 use Milpa\Live\Runtime\InMemoryComponentRegistry;
 use Milpa\Live\Tests\Fixtures\TestSecurityWiring;
 use Milpa\Live\ValueObjects\ComponentContext;
+use Milpa\Live\ValueObjects\ClientAssets;
+use Milpa\Live\ValueObjects\RenderRequest;
+use Milpa\Live\ValueObjects\RenderResult;
+use Milpa\Live\ValueObjects\RenderTarget;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -118,6 +125,54 @@ final class LiveEndpointTest extends TestCase
         self::assertSame('milpa', $response->body['data']['items'][0]['value']);
         self::assertStringContainsString('security="signed"', (string) $response->body['state']);
         self::assertStringContainsString('milpaAutocomplete(', (string) $response->body['html']);
+        self::assertSame(
+            'Search…',
+            $response->body['assets']['components']['autocomplete@0.1.0']['messages']['autocomplete.search_placeholder'] ?? null,
+            'a component introduced by the fresh render carries its own presentation assets over the wire',
+        );
+        self::assertSame(['scripts' => [], 'styles' => []], $response->body['assets']['client'] ?? null);
+    }
+
+    public function testSuccessfulRenderCarriesRendererClientFilesOverTheWire(): void
+    {
+        $inner = new AutocompleteHtmlRenderer(new AlpineRuntimeAdapter(), $this->codec);
+        $renderer = new class ($inner) implements ComponentRendererInterface, DeclaresClientAssets {
+            public function __construct(private readonly ComponentRendererInterface $inner)
+            {
+            }
+
+            public function supportsTarget(RenderTarget $target): bool
+            {
+                return $this->inner->supportsTarget($target);
+            }
+
+            public function render(ComponentDefinitionInterface $component, RenderRequest $request): RenderResult
+            {
+                return $this->inner->render($component, $request);
+            }
+
+            public function clientAssets(): ClientAssets
+            {
+                return new ClientAssets(scripts: ['/plugin/todo.js'], styles: ['/plugin/todo.css']);
+            }
+        };
+        $endpoint = new LiveEndpoint(
+            components: $this->components,
+            codec: $this->codec,
+            authorizer: TestSecurityWiring::authorizer($this->components),
+            csrf: $this->csrf,
+            route: TestSecurityWiring::ROUTE,
+            renderers: ['autocomplete' => $renderer],
+            renderProps: ['autocomplete' => ['endpoint' => TestSecurityWiring::ROUTE]],
+        );
+        $envelope = $this->codec->encodeState($this->initialState);
+
+        $response = $endpoint->handle($this->request('POST', 'search', $envelope, ['query' => 'mil']));
+
+        self::assertSame(
+            ['scripts' => ['/plugin/todo.js'], 'styles' => ['/plugin/todo.css']],
+            $response->body['assets']['client'] ?? null,
+        );
     }
 
     /** PINNED: replay -> 409, and stays rejected on repeated resubmission. */
