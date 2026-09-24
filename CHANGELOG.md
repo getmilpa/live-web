@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/getmilpa/live-web/compare/v0.30.2...v0.31.0) (2026-09-24)
+
+
+### Features
+
+* **components:** content, readable entries painted through their roles ([#85](https://github.com/getmilpa/live-web/issues/85)) ([6cc32aa](https://github.com/getmilpa/live-web/commit/6cc32aa1ff457cf756bff0db444fc1b80a7067ef))
+
 ## [0.30.2](https://github.com/getmilpa/live-web/compare/v0.30.1...v0.30.2) (2026-09-22)
 
 
