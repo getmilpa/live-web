@@ -50,6 +50,7 @@ final class WebLibrary implements DeclaresComponents
         return [
             BrandMarkComponent::class,
             CodeBlockComponent::class,
+            ContentComponent::class,
         ];
     }
 }
