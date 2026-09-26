@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.1](https://github.com/getmilpa/live-web/compare/v0.31.0...v0.31.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **rendering:** a renderer reads only what its component declares ([#87](https://github.com/getmilpa/live-web/issues/87)) ([c85d48a](https://github.com/getmilpa/live-web/commit/c85d48aad6d25c0e699bfbf5b621ed04ad5e5bce))
+
 ## [0.31.0](https://github.com/getmilpa/live-web/compare/v0.30.2...v0.31.0) (2026-09-24)
 
 
